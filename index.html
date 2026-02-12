@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNI Traffic Lights Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #f5f5f7;
+            --surface: #ffffff;
+            --surface2: #eeeef0;
+            --text: #1a1a1f;
+            --text-muted: #64666a;
+            --accent: #CF2030;
+            --accent-light: rgba(207,32,48,0.08);
+            --green: #16a34a;
+            --green-bg: rgba(22,163,74,0.1);
+            --yellow: #ca8a04;
+            --yellow-bg: rgba(202,138,4,0.1);
+            --red: #dc2626;
+            --red-bg: rgba(220,38,38,0.1);
+            --black: #64666a;
+            --black-bg: rgba(100,102,106,0.1);
+            --border: #d4d4d8;
+            --hover-bg: rgba(0,0,0,0.03);
+            --chart-text: #64666a;
+            --chart-grid: #e4e4e7;
+        }
+        [data-theme="dark"] {
+            --bg: #1a1a1f;
+            --surface: #242429;
+            --surface2: #333338;
+            --text: #e8e8ec;
+            --text-muted: #9a9aa6;
+            --accent-light: rgba(207,32,48,0.12);
+            --green: #22c55e;
+            --green-bg: rgba(34,197,94,0.12);
+            --yellow: #eab308;
+            --yellow-bg: rgba(234,179,8,0.12);
+            --red: #ef4444;
+            --red-bg: rgba(239,68,68,0.12);
+            --black-bg: rgba(100,102,106,0.12);
+            --border: #3d3d44;
+            --hover-bg: rgba(255,255,255,0.02);
+            --chart-text: #9a9aa6;
+            --chart-grid: #3d3d44;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            border-top: 3px solid var(--accent);
+            padding: 1rem 2rem;
+        }
+        header h1 { font-size: 1.25rem; font-weight: 600; }
+        header .subtitle { color: var(--text-muted); font-size: 0.875rem; }
+        .controls {
+            background: var(--surface);
+            padding: 1rem 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            border-bottom: 1px solid var(--border);
+        }
+        .controls label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.25rem; }
+        .controls select {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            min-width: 180px;
+        }
+        .controls select:focus { outline: 2px solid var(--accent); }
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            overflow-x: auto;
+        }
+        .tab-bar button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.75rem 1.25rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .tab-bar button.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-bar button:hover { color: var(--text); }
+        main { padding: 1.5rem 2rem; max-width: 1400px; margin: 0 auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .grid { display: grid; gap: 1.25rem; }
+        .grid-2 { grid-template-columns: 1fr 1fr; }
+        .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .grid-5 { grid-template-columns: repeat(5, 1fr); }
+        @media (max-width: 1024px) { .grid-5 { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px) { .grid-2, .grid-3, .grid-5 { grid-template-columns: 1fr; } .grid-5 { grid-template-columns: repeat(2, 1fr); } }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+        }
+        .card h3 {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); }
+        .chart-container { position: relative; width: 100%; height: 300px; }
+        .chart-tall { height: 450px; }
+
+        /* Traffic light colours */
+        .tl { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; font-size: 0.85rem; padding: 0.2rem 0.6rem; border-radius: 999px; }
+        .tl-G { background: var(--green-bg); color: var(--green); }
+        .tl-Y { background: var(--yellow-bg); color: var(--yellow); }
+        .tl-R { background: var(--red-bg); color: var(--red); }
+        .tl-B { background: var(--black-bg); color: var(--black); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+        .dot-G { background: var(--green); }
+        .dot-Y { background: var(--yellow); }
+        .dot-R { background: var(--red); }
+        .dot-B { background: var(--black); }
+
+        /* Scorecard */
+        .scorecard { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .scorecard-header {
+            padding: 1rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .scorecard-header h2 { font-size: 1.1rem; font-weight: 600; }
+        .scorecard-header .score { font-size: 1.5rem; font-weight: 700; }
+        .kpi-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 2fr;
+            gap: 1rem;
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+        .kpi-row:last-child { border-bottom: none; }
+        .kpi-row:hover { background: var(--hover-bg); }
+        .kpi-name { font-weight: 600; font-size: 0.9rem; }
+        .kpi-stat { text-align: center; }
+        .kpi-stat .val { font-size: 1.1rem; font-weight: 700; }
+        .kpi-stat .lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+        .kpi-action {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            background: var(--surface2);
+        }
+        .kpi-action.is-green { background: var(--green-bg); color: var(--green); }
+        .kpi-action strong { font-weight: 700; }
+
+        /* Progress bar */
+        .progress-wrap { width: 100%; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 0.35rem; }
+        .progress-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+        .progress-bar-G { background: var(--green); }
+        .progress-bar-Y { background: var(--yellow); }
+        .progress-bar-R { background: var(--red); }
+        .progress-bar-B { background: var(--black); }
+
+        /* Chapter table */
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; position: sticky; top: 0; background: var(--surface); }
+        tr:hover { background: var(--hover-bg); }
+        .clickable { cursor: pointer; }
+        .clickable:hover { color: var(--accent); }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+
+        /* Member picker */
+        .member-picker { margin-bottom: 1.25rem; }
+        .member-search { width: 100%; padding: 0.6rem 1rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; margin-bottom: 0.75rem; }
+        .member-search:focus { outline: 2px solid var(--accent); }
+        .member-search::placeholder { color: var(--text-muted); }
+        .member-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; max-height: 320px; overflow-y: auto; padding-right: 0.25rem; }
+        .member-grid::-webkit-scrollbar { width: 6px; }
+        .member-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .member-chip {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.55rem 0.75rem; border-radius: 8px;
+            background: var(--surface); border: 1px solid var(--border);
+            cursor: pointer; transition: all 0.15s; font-size: 0.85rem;
+        }
+        .member-chip:hover { border-color: var(--accent); background: var(--surface2); }
+        .member-chip.selected { border-color: var(--accent); background: var(--accent-light); }
+        .member-chip .chip-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .member-chip .chip-pts { font-weight: 700; font-size: 0.8rem; }
+
+        /* Theme toggle */
+        .theme-toggle {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+        }
+        .theme-toggle:hover { border-color: var(--accent); }
+
+        /* Mini KPI charts grid */
+        .kpi-mini-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.75rem; }
+
+        /* Scoring tab colour rows */
+        .scoring-colour-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 8px; }
+        .scoring-colour-row .auto-hide { display: block; }
+
+        /* Power of One items */
+        .po1-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+        .po1-item:last-child { border-bottom: none; }
+        .po1-num { font-size: 1.5rem; font-weight: 700; color: var(--accent); width: 40px; text-align: center; flex-shrink: 0; }
+
+        /* ===== RESPONSIVE ===== */
+
+        /* Tablet */
+        @media (max-width: 1024px) {
+            header { padding: 0.75rem 1rem; }
+            .controls { padding: 0.75rem 1rem; }
+            .tab-bar { padding: 0 1rem; }
+            main { padding: 1rem; }
+            .card { padding: 1rem; }
+            .chart-tall { height: 350px; }
+            .kpi-mini-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            header { padding: 0.75rem 1rem; }
+            header h1 { font-size: 1.1rem; }
+            .controls { padding: 0.75rem 1rem; gap: 0.75rem; }
+            .controls select { min-width: 140px; font-size: 0.8rem; }
+            .tab-bar { padding: 0 0.5rem; -webkit-overflow-scrolling: touch; }
+            .tab-bar button { padding: 0.6rem 0.75rem; font-size: 0.8rem; }
+            main { padding: 0.75rem; }
+            .card { padding: 0.85rem; border-radius: 8px; }
+
+            /* Scorecard KPI rows: stack vertically */
+            .kpi-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem;
+                padding: 0.75rem 0.85rem;
+            }
+            .kpi-row > div:first-child { grid-column: 1 / -1; }
+            .kpi-row > div:last-child { grid-column: 1 / -1; }
+            .scorecard-header { padding: 0.75rem 0.85rem; flex-wrap: wrap; gap: 0.5rem; }
+            .scorecard-header h2 { font-size: 1rem; }
+
+            /* Member picker */
+            .member-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: 240px; }
+
+            /* Charts */
+            .chart-container { height: 220px !important; }
+            .chart-tall { height: 280px !important; }
+            .kpi-mini-grid { grid-template-columns: repeat(2, 1fr); }
+
+            /* Tables */
+            th, td { padding: 0.4rem 0.5rem; font-size: 0.75rem; }
+
+            /* Scoring tab */
+            .scoring-colour-row { flex-wrap: wrap; padding: 0.6rem 0.75rem; gap: 0.4rem; }
+            .scoring-colour-row .auto-hide { display: none; }
+
+            /* Trend member toggles */
+            #trendMemberToggles { max-height: 120px; }
+        }
+
+        /* Small mobile */
+        @media (max-width: 480px) {
+            header h1 { font-size: 1rem; }
+            header .subtitle { font-size: 0.75rem; }
+            .controls { flex-direction: column; align-items: stretch; }
+            .controls select { min-width: 100%; }
+            .tab-bar button { padding: 0.5rem 0.6rem; font-size: 0.75rem; }
+            main { padding: 0.5rem; }
+
+            .kpi-row { grid-template-columns: 1fr; gap: 0.4rem; }
+            .kpi-stat { text-align: left; display: flex; align-items: center; gap: 0.5rem; }
+            .kpi-stat .lbl { text-transform: none; }
+
+            .member-grid { grid-template-columns: 1fr; max-height: 200px; }
+            .kpi-mini-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+
+            .chart-container { height: 180px !important; }
+            .chart-tall { height: 220px !important; }
+        }
+    </style>
+</head>
+<body>
+    <header style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+            <h1>BNI Traffic Lights Dashboard</h1>
+            <div class="subtitle">Member Performance & Improvement Tracker</div>
+        </div>
+        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark/light mode">&#9790;</button>
+    </header>
+
+    <div class="controls">
+        <div>
+            <label>Period</label>
+            <select id="periodSelect"></select>
+        </div>
+        <div>
+            <label>Member</label>
+            <select id="memberSelect"><option value="">All Members</option></select>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <button class="active" data-tab="scorecards">Scorecards</button>
+        <button data-tab="chapter">Chapter Overview</button>
+        <button data-tab="trends">Trends</button>
+        <button data-tab="scoring">How Scoring Works</button>
+    </div>
+
+    <main>
+        <!-- SCORECARDS TAB: individual member KPI cards -->
+        <div id="tab-scorecards" class="tab-content active">
+            <div id="scorecardsContainer"></div>
+        </div>
+
+        <!-- CHAPTER OVERVIEW TAB: all members ranked -->
+        <div id="tab-chapter" class="tab-content">
+            <div class="grid grid-5" id="chapterStats" style="margin-bottom:1.25rem;"></div>
+            <div class="grid grid-2" style="margin-bottom:1.25rem;">
+                <div class="card">
+                    <h3>Overall Traffic Light Distribution</h3>
+                    <div class="chart-container"><canvas id="chapterPieChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <h3>Members Ranked by Total Score</h3>
+                    <div class="chart-container chart-tall"><canvas id="chapterBarChart"></canvas></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>All Members — KPI Breakdown</h3>
+                <div style="overflow-x:auto;" id="chapterTable"></div>
+            </div>
+        </div>
+
+        <!-- TRENDS TAB: historical -->
+        <div id="tab-trends" class="tab-content">
+            <div class="card" style="margin-bottom:1.25rem;">
+                <h3>Total Score Over Time</h3>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Every member's total score (out of 100) plotted across periods. The dashed grey line is the chapter average. Use the toggles below to show/hide members.</p>
+                <div class="chart-container" style="height:400px;"><canvas id="trendChart"></canvas></div>
+                <div style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                        <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:600;">Show Members</span>
+                        <div style="display:flex;gap:0.5rem;">
+                            <button onclick="trendSelectAll()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">All</button>
+                            <button onclick="trendSelectNone()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">None</button>
+                            <button onclick="trendSelectGreen()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--green-bg);color:var(--green);cursor:pointer;">Green</button>
+                            <button onclick="trendSelectNonGreen()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--red-bg);color:var(--red);cursor:pointer;">Not Green</button>
+                        </div>
+                    </div>
+                    <div id="trendMemberToggles" style="display:flex;flex-wrap:wrap;gap:0.35rem;max-height:160px;overflow-y:auto;"></div>
+                </div>
+            </div>
+            <div class="card" style="margin-bottom:1.25rem;">
+                <h3>Chapter Health: % Green Over Time</h3>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">What percentage of all KPI scores across all members are Green each period? A rising line means the chapter is improving overall.</p>
+                <div class="chart-container" style="height:250px;"><canvas id="greenPctChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h3>KPI Averages Over Time</h3>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Each mini chart shows the chapter's average score (out of 20) for one KPI across periods. Spot which KPIs are improving and which need attention.</p>
+                <div class="kpi-mini-grid" id="kpiMiniCharts">
+                    <div style="text-align:center;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:0.35rem;">Referrals</div><div style="height:140px;"><canvas id="kpiMini0"></canvas></div></div>
+                    <div style="text-align:center;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:0.35rem;">1-to-1s</div><div style="height:140px;"><canvas id="kpiMini1"></canvas></div></div>
+                    <div style="text-align:center;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:0.35rem;">Visitors</div><div style="height:140px;"><canvas id="kpiMini2"></canvas></div></div>
+                    <div style="text-align:center;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:0.35rem;">CEUs</div><div style="height:140px;"><canvas id="kpiMini3"></canvas></div></div>
+                    <div style="text-align:center;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:0.35rem;">Attendance</div><div style="height:140px;"><canvas id="kpiMini4"></canvas></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HOW SCORING WORKS TAB -->
+        <div id="tab-scoring" class="tab-content">
+            <div class="grid grid-2" style="margin-bottom:1.25rem;">
+                <div class="card">
+                    <h3>Overall Traffic Light Colours</h3>
+                    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Your total score is the sum of all 5 KPI scores (max 20 each = 100 total). The colour is determined by your total:</p>
+                    <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                        <div class="scoring-colour-row" style="background:var(--green-bg);">
+                            <span class="dot dot-G"></span>
+                            <div><strong style="color:var(--green);font-size:1.1rem;">Green</strong><span style="color:var(--text-muted);margin-left:0.5rem;">70 &ndash; 100 points</span></div>
+                            <div class="auto-hide" style="margin-left:auto;font-size:0.8rem;color:var(--text-muted);">You're doing what's needed</div>
+                        </div>
+                        <div class="scoring-colour-row" style="background:var(--yellow-bg);">
+                            <span class="dot dot-Y"></span>
+                            <div><strong style="color:var(--yellow);font-size:1.1rem;">Yellow</strong><span style="color:var(--text-muted);margin-left:0.5rem;">50 &ndash; 65 points</span></div>
+                            <div class="auto-hide" style="margin-left:auto;font-size:0.8rem;color:var(--text-muted);">Some activity, but gaps remain</div>
+                        </div>
+                        <div class="scoring-colour-row" style="background:var(--red-bg);">
+                            <span class="dot dot-R"></span>
+                            <div><strong style="color:var(--red);font-size:1.1rem;">Red</strong><span style="color:var(--text-muted);margin-left:0.5rem;">30 &ndash; 45 points</span></div>
+                            <div class="auto-hide" style="margin-left:auto;font-size:0.8rem;color:var(--text-muted);">Low activity or missing key behaviours</div>
+                        </div>
+                        <div class="scoring-colour-row" style="background:var(--black-bg);">
+                            <span class="dot dot-B"></span>
+                            <div><strong style="color:var(--black);font-size:1.1rem;">Black</strong><span style="color:var(--text-muted);margin-left:0.5rem;">25 and under</span></div>
+                            <div class="auto-hide" style="margin-left:auto;font-size:0.8rem;color:var(--text-muted);">No or minimal activity</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>The Power of One</h3>
+                    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">The foundation of BNI scoring is the <strong style="color:var(--text);">Power of One</strong> concept. To be Green, aim for:</p>
+                    <div style="display:flex;flex-direction:column;">
+                        <div class="po1-item">
+                            <span class="po1-num">1</span>
+                            <div><strong>Meeting per week</strong><br><span style="color:var(--text-muted);font-size:0.8rem;">Attend every chapter meeting. Your time = your commitment.</span></div>
+                        </div>
+                        <div class="po1-item">
+                            <span class="po1-num">1</span>
+                            <div><strong>Referral per week</strong><br><span style="color:var(--text-muted);font-size:0.8rem;">Give quality referrals &mdash; the core of Givers Gain.</span></div>
+                        </div>
+                        <div class="po1-item">
+                            <span class="po1-num">1</span>
+                            <div><strong>One-to-One per week</strong><br><span style="color:var(--text-muted);font-size:0.8rem;">Build deep relationships &mdash; the primary venue for trust.</span></div>
+                        </div>
+                        <div class="po1-item">
+                            <span class="po1-num">1</span>
+                            <div><strong>Visitor per month</strong><br><span style="color:var(--text-muted);font-size:0.8rem;">Grow the chapter. On average, a visitor brings ~$1,000 of business.</span></div>
+                        </div>
+                        <div class="po1-item">
+                            <span class="po1-num">1</span>
+                            <div><strong>CEU per week</strong><br><span style="color:var(--text-muted);font-size:0.8rem;">Invest in becoming a better networker through education.</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:1.25rem;">
+                <h3>KPI Scoring Thresholds (per KPI, max 20 points each)</h3>
+                <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Points are awarded in 5-point increments based on your <strong style="color:var(--text);">rolling 6-month average</strong> from PALMS reports.</p>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Points</th>
+                                <th class="text-center">Referrals / week</th>
+                                <th class="text-center">1-to-1s / week</th>
+                                <th class="text-center">Visitors / week</th>
+                                <th class="text-center">CEUs / week</th>
+                                <th class="text-center">Attendance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="tl tl-G" style="font-size:0.8rem;"><span class="dot dot-G"></span>20 pts</span></td>
+                                <td class="text-center">&ge; 1.0</td>
+                                <td class="text-center">&ge; 1.0</td>
+                                <td class="text-center">&ge; 0.25 <span style="color:var(--text-muted);font-size:0.75rem;">(1/month)</span></td>
+                                <td class="text-center">&ge; 1.0</td>
+                                <td class="text-center">100%</td>
+                            </tr>
+                            <tr>
+                                <td><span class="tl tl-Y" style="font-size:0.8rem;"><span class="dot dot-Y"></span>15 pts</span></td>
+                                <td class="text-center">0.75 &ndash; 0.99</td>
+                                <td class="text-center">0.75 &ndash; 0.99</td>
+                                <td class="text-center">0.125 &ndash; 0.24 <span style="color:var(--text-muted);font-size:0.75rem;">(1/2mo)</span></td>
+                                <td class="text-center">0.75 &ndash; 0.99</td>
+                                <td class="text-center">~90%+</td>
+                            </tr>
+                            <tr>
+                                <td><span class="tl tl-Y" style="font-size:0.8rem;"><span class="dot dot-Y"></span>10 pts</span></td>
+                                <td class="text-center">0.50 &ndash; 0.74</td>
+                                <td class="text-center">0.50 &ndash; 0.74</td>
+                                <td class="text-center">0.08 &ndash; 0.124 <span style="color:var(--text-muted);font-size:0.75rem;">(1/3mo)</span></td>
+                                <td class="text-center">0.50 &ndash; 0.74</td>
+                                <td class="text-center">~75%+</td>
+                            </tr>
+                            <tr>
+                                <td><span class="tl tl-R" style="font-size:0.8rem;"><span class="dot dot-R"></span>5 pts</span></td>
+                                <td class="text-center">0.25 &ndash; 0.49</td>
+                                <td class="text-center">0.25 &ndash; 0.49</td>
+                                <td class="text-center">0.06 &ndash; 0.079 <span style="color:var(--text-muted);font-size:0.75rem;">(1/4mo)</span></td>
+                                <td class="text-center">0.25 &ndash; 0.49</td>
+                                <td class="text-center">~50%+</td>
+                            </tr>
+                            <tr>
+                                <td><span class="tl tl-B" style="font-size:0.8rem;"><span class="dot dot-B"></span>0 pts</span></td>
+                                <td class="text-center">&lt; 0.25</td>
+                                <td class="text-center">&lt; 0.25</td>
+                                <td class="text-center">&lt; 0.06</td>
+                                <td class="text-center">&lt; 0.25</td>
+                                <td class="text-center">&lt; 50%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.75rem;"><strong>Note:</strong> Attendance awards 0.5 points for substitutes, late arrivals, or early departures. Point values are the default system calculations &mdash; actual thresholds may vary slightly by country and region.</p>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="card">
+                    <h3>What Each KPI Measures</h3>
+                    <div style="display:flex;flex-direction:column;gap:0.75rem;font-size:0.85rem;">
+                        <div style="padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
+                            <strong style="color:var(--accent);">Attendance</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Giving your <em>time</em>. Attending meetings fulfils your commitment and lets members learn how to refer you. Critical for credibility.</p>
+                        </div>
+                        <div style="padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
+                            <strong style="color:var(--accent);">Referrals</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Giving your <em>trust</em>. Quality referrals are the core purpose of BNI and the Givers Gain philosophy. Each referral represents business AND trust.</p>
+                        </div>
+                        <div style="padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
+                            <strong style="color:var(--accent);">One-to-Ones</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Giving your <em>attention</em>. The primary venue for building deep relationships. Weekly presentations alone aren't enough &mdash; 1-to-1s build the trust needed for quality referrals.</p>
+                        </div>
+                        <div style="padding-bottom:0.75rem;border-bottom:1px solid var(--border);">
+                            <strong style="color:var(--accent);">Visitors</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Giving <em>growth</em>. Each visitor brings ~$1,000 of business to the chapter on average. If they join, the benefit is far greater. You're growing everyone's network.</p>
+                        </div>
+                        <div>
+                            <strong style="color:var(--accent);">CEUs (Chapter Education Units)</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Giving your <em>energy</em>. Investing in becoming a better networker benefits everyone you network with. Better skills = better referrals.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Tips to Improve Your Score</h3>
+                    <div style="display:flex;flex-direction:column;gap:0.75rem;font-size:0.85rem;">
+                        <div style="padding:0.75rem;border-radius:8px;background:var(--surface2);">
+                            <strong>Attendance is the easiest win</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Show up every week, on time, and stay for the full meeting. If you can't attend, arrange a qualified substitute. Half points are better than zero.</p>
+                        </div>
+                        <div style="padding:0.75rem;border-radius:8px;background:var(--surface2);">
+                            <strong>Schedule 1-to-1s in advance</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Block time each week for at least one 1-to-1. Don't wait to be asked &mdash; reach out proactively. Coffee, lunch, or a quick video call all count.</p>
+                        </div>
+                        <div style="padding:0.75rem;border-radius:8px;background:var(--surface2);">
+                            <strong>Think broadly about referrals</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">A referral doesn't have to be a signed deal. Introductions, recommendations, and warm leads all count. Aim for at least one per week.</p>
+                        </div>
+                        <div style="padding:0.75rem;border-radius:8px;background:var(--surface2);">
+                            <strong>Invite visitors consistently</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">You only need 1 visitor per month for full points. Think about your contacts &mdash; who would benefit from seeing your chapter in action?</p>
+                        </div>
+                        <div style="padding:0.75rem;border-radius:8px;background:var(--surface2);">
+                            <strong>CEUs are easy to earn</strong>
+                            <p style="color:var(--text-muted);margin-top:0.25rem;">Listen to BNI podcasts, attend training webinars, read BNI articles, or participate in chapter education moments. 1 per week keeps you Green.</p>
+                        </div>
+                    </div>
+                    <div style="margin-top:1rem;padding:0.75rem;border-radius:8px;background:var(--green-bg);font-size:0.85rem;">
+                        <strong style="color:var(--green);">Remember:</strong> <span style="color:var(--text-muted);">Traffic Lights are feedback, not punishment. They're a roadmap showing where to focus your energy for maximum ROI from your BNI membership.</span>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:1rem;text-align:center;font-size:0.75rem;color:var(--text-muted);">Sources: <a href="https://www.bni.com/the-latest/blog-news/traffic_lights_performance/" target="_blank" style="color:var(--accent);">BNI &mdash; A Practical Litmus Test for Givers Gain</a> &middot; <a href="https://www.bni.com/the-latest/blog-news/bni-tools-the-traffic-lights/" target="_blank" style="color:var(--accent);">BNI Tools: The Traffic Lights</a> &middot; <a href="https://support.bniconnect.com/hc/en-us/articles/219067147-Chapter-Traffic-Lights-Report" target="_blank" style="color:var(--accent);">BNI Connect Support</a></div>
+        </div>
+    </main>
+
+    <script>
+    const COLOURS = { G: '#22c55e', Y: '#eab308', R: '#ef4444', B: '#64748b' };
+    const COLOUR_NAMES = { G: 'Green', Y: 'Yellow', R: 'Red', B: 'Black' };
+    const KPI_SHORT = { 'REFERRALS': 'Referrals', "ONE TO ONE's": '1-to-1s', 'VISITORS': 'Visitors', 'CHAPTER EDUCATION UNITS': 'CEUs', 'ATTENDANCE': 'Attendance' };
+    let charts = {};
+    let state = { members: [], periods: [], allKpi: [], allSummary: [], kpi: [], summary: [] };
+
+    async function loadJson(path) { return (await fetch(path)).json(); }
+
+    function destroyChart(k) { if (charts[k]) { charts[k].destroy(); delete charts[k]; } }
+
+    // --- INIT ---
+    async function init() {
+        const [members, periods, allKpi, allSummary] = await Promise.all([
+            loadJson('data/members.json'),
+            loadJson('data/periods.json'),
+            loadJson('data/kpi.json'),
+            loadJson('data/summary.json'),
+        ]);
+        state.members = members;
+        state.periods = periods;
+        state.allKpi = allKpi;
+        state.allSummary = allSummary;
+
+        // Populate period dropdown (default to latest)
+        const pSel = document.getElementById('periodSelect');
+        periods.forEach((p, i) => {
+            const opt = document.createElement('option');
+            opt.value = p; opt.textContent = p;
+            if (i === periods.length - 1) opt.selected = true;
+            pSel.appendChild(opt);
+        });
+
+        // Populate member dropdown
+        const mSel = document.getElementById('memberSelect');
+        members.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.name; opt.textContent = m.name;
+            mSel.appendChild(opt);
+        });
+
+        refresh();
+    }
+
+    function refresh() {
+        const period = document.getElementById('periodSelect').value;
+        const member = document.getElementById('memberSelect').value;
+
+        // Client-side filtering from pre-loaded data
+        let kpi = state.allKpi.filter(r => r.report_period === period);
+        let summary = state.allSummary.filter(r => r.report_period === period);
+        if (member) {
+            kpi = kpi.filter(r => r.member_name === member);
+            summary = summary.filter(r => r.member_name === member);
+        }
+        state.kpi = kpi;
+        state.summary = summary;
+
+        renderScorecards();
+        renderChapter();
+        renderTrends();
+    }
+
+    // --- TAB SWITCHING ---
+    document.querySelectorAll('.tab-bar button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    // --- SCORECARDS ---
+    let selectedScorecardMember = null;
+
+    function renderScorecards() {
+        const container = document.getElementById('scorecardsContainer');
+        const { kpi, summary } = state;
+        const period = document.getElementById('periodSelect').value;
+
+        // Group KPI data by member
+        const byMember = {};
+        kpi.forEach(r => {
+            if (!byMember[r.member_name]) byMember[r.member_name] = [];
+            byMember[r.member_name].push(r);
+        });
+
+        // Sort members by total_pts descending
+        const memberNames = Object.keys(byMember).sort((a, b) => {
+            const sa = summary.find(s => s.member_name === a);
+            const sb = summary.find(s => s.member_name === b);
+            return (sb?.total_pts || 0) - (sa?.total_pts || 0);
+        });
+
+        if (!memberNames.length) {
+            container.innerHTML = '<div class="empty-state">No data for this selection.</div>';
+            return;
+        }
+
+        // Auto-select first member if none selected or selected member not in list
+        if (!selectedScorecardMember || !memberNames.includes(selectedScorecardMember)) {
+            selectedScorecardMember = memberNames[0];
+        }
+
+        // Build member picker
+        let html = `<div class="member-picker card">`;
+        html += `<h3>Select Member</h3>`;
+        html += `<input type="text" class="member-search" id="scorecardSearch" placeholder="Search members..." oninput="filterMemberChips()">`;
+        html += `<div class="member-grid" id="memberChipGrid">`;
+        memberNames.forEach(name => {
+            const s = summary.find(s => s.member_name === name);
+            const cor = s?.total_cor || 'B';
+            const pts = s?.total_pts || 0;
+            const sel = name === selectedScorecardMember ? ' selected' : '';
+            html += `<div class="member-chip${sel}" data-member="${name}" onclick="pickScorecardMember('${name.replace(/'/g, "\\'")}')">`;
+            html += `<span class="dot dot-${cor}"></span>`;
+            html += `<span class="chip-name">${name}</span>`;
+            html += `<span class="chip-pts" style="color:${COLOURS[cor]}">${pts}</span>`;
+            html += `</div>`;
+        });
+        html += `</div></div>`;
+
+        // Build scorecard for selected member only
+        const name = selectedScorecardMember;
+        const rows = byMember[name].sort((a, b) => a.display_order - b.display_order);
+        const s = summary.find(s => s.member_name === name);
+        const totalPts = s?.total_pts || rows[0]?.total_pts || 0;
+        const totalCor = s?.total_cor || rows[0]?.total_cor || 'B';
+
+        html += `<div class="scorecard card" style="margin-top:0;">`;
+        html += `<div class="scorecard-header">
+            <div>
+                <h2>${name}</h2>
+                <span class="stat-label">${period} &middot; ${rows[0]?.grupo || ''}</span>
+            </div>
+            <div style="text-align:right;">
+                <div class="score" style="color:${COLOURS[totalCor]}">${totalPts}<span style="font-size:0.8rem;color:var(--text-muted)">/100</span></div>
+                <span class="tl tl-${totalCor}"><span class="dot dot-${totalCor}"></span>${COLOUR_NAMES[totalCor]}</span>
+            </div>
+        </div>`;
+
+        rows.forEach(r => {
+            const pct = Math.min(100, (r.kpi_pts / 20) * 100);
+            const kpiLabel = KPI_SHORT[r.kpi] || r.kpi;
+            const isGreen = r.kpi_cor === 'G';
+            const toMaxQnt = r.kpi_tomax_qnt;
+            const toNextQnt = r.kpi_tonext_qnt;
+            const nextCor = r.kpi_tonext_cor;
+            const maxCor = r.kpi_tomax_cor;
+
+            // Build actionable advice text
+            let adviceText = '';
+            if (!isGreen && toMaxQnt > 0) {
+                if (r.kpi === 'ATTENDANCE') adviceText = 'Attend all upcoming meetings. Arrange a sub if you must miss one.';
+                else if (r.kpi === 'VISITORS') adviceText = `Bring ${toMaxQnt} more visitor${toMaxQnt > 1 ? 's' : ''}. Who in your network would benefit from seeing the chapter?`;
+                else if (r.kpi === 'REFERRALS') adviceText = `Submit ${toMaxQnt} more referral${toMaxQnt > 1 ? 's' : ''}. Introductions and warm leads count too.`;
+                else if (r.kpi === "ONE TO ONE's") adviceText = `Schedule ${toMaxQnt} more 1-to-1${toMaxQnt > 1 ? 's' : ''}. Coffee, lunch, or a quick video call all work.`;
+                else if (r.kpi === 'CHAPTER EDUCATION UNITS') adviceText = `Complete ${toMaxQnt} more CEU${toMaxQnt > 1 ? 's' : ''}. BNI podcasts and webinars are the easiest way.`;
+            }
+
+            // Build gap indicators
+            let gapHtml = '';
+            if (isGreen) {
+                gapHtml = `<div class="kpi-action is-green" style="text-align:center;">&#10003; Green</div>`;
+            } else {
+                let parts = [];
+                if (toNextQnt > 0 && nextCor !== r.kpi_cor) {
+                    parts.push(`<strong>+${toNextQnt}</strong> for <span class="tl tl-${nextCor}" style="font-size:0.75rem;padding:0.1rem 0.4rem;"><span class="dot dot-${nextCor}"></span>${COLOUR_NAMES[nextCor] || nextCor}</span>`);
+                }
+                if (toMaxQnt > 0 && maxCor === 'G') {
+                    parts.push(`<strong>+${toMaxQnt}</strong> for <span class="tl tl-G" style="font-size:0.75rem;padding:0.1rem 0.4rem;"><span class="dot dot-G"></span>Green</span>`);
+                }
+                if (!parts.length) parts.push('Maintain activity');
+                gapHtml = `<div class="kpi-action">${parts.join(' &middot; ')}</div>`;
+            }
+
+            html += `<div style="border-bottom:1px solid var(--border);">
+                <div class="kpi-row" style="border-bottom:none;">
+                    <div>
+                        <div class="kpi-name">${kpiLabel}</div>
+                        <div class="progress-wrap"><div class="progress-bar progress-bar-${r.kpi_cor}" style="width:${pct}%"></div></div>
+                    </div>
+                    <div class="kpi-stat">
+                        <div class="val">${r.kpi_qnt}</div>
+                        <div class="lbl">Count</div>
+                    </div>
+                    <div class="kpi-stat">
+                        <div class="val" style="color:${COLOURS[r.kpi_cor]}">${r.kpi_pts}<span style="font-size:0.7rem;color:var(--text-muted)">/20</span></div>
+                        <div class="lbl"><span class="tl tl-${r.kpi_cor}" style="font-size:0.75rem;padding:0.1rem 0.4rem;"><span class="dot dot-${r.kpi_cor}"></span>${COLOUR_NAMES[r.kpi_cor]}</span></div>
+                    </div>
+                    <div>${gapHtml}</div>
+                </div>`;
+
+            // Inline action advice for non-green KPIs
+            if (!isGreen && adviceText) {
+                html += `<div style="padding:0 1.25rem 0.75rem 1.25rem;">
+                    <div style="padding:0.5rem 0.75rem;border-radius:6px;background:${toMaxQnt <= 3 ? 'var(--accent-light)' : 'var(--surface2)'};font-size:0.8rem;color:var(--text-muted);display:flex;align-items:flex-start;gap:0.5rem;">
+                        <span style="color:var(--accent);font-size:0.9rem;line-height:1;">&#9654;</span>
+                        <span>${adviceText}</span>
+                    </div>
+                </div>`;
+            }
+
+            html += `</div>`;
+        });
+
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function pickScorecardMember(name) {
+        selectedScorecardMember = name;
+        renderScorecards();
+    }
+
+    function filterMemberChips() {
+        const q = document.getElementById('scorecardSearch').value.toLowerCase();
+        document.querySelectorAll('#memberChipGrid .member-chip').forEach(chip => {
+            const name = chip.dataset.member.toLowerCase();
+            chip.style.display = name.includes(q) ? '' : 'none';
+        });
+    }
+
+    // --- CHAPTER OVERVIEW ---
+    function renderChapter() {
+        const { kpi, summary } = state;
+        const period = document.getElementById('periodSelect').value;
+
+        // Stats
+        const totalMembers = summary.length;
+        const greenCount = summary.filter(s => s.total_cor === 'G').length;
+        const yellowCount = summary.filter(s => s.total_cor === 'Y').length;
+        const redCount = summary.filter(s => s.total_cor === 'R').length;
+        const avgPts = totalMembers ? (summary.reduce((a, s) => a + (s.total_pts || 0), 0) / totalMembers).toFixed(0) : 0;
+
+        document.getElementById('chapterStats').innerHTML = `
+            <div class="card"><h3>Members</h3><div class="stat-value">${totalMembers}</div></div>
+            <div class="card"><h3>Avg Score</h3><div class="stat-value">${avgPts}<span class="stat-label">/100</span></div></div>
+            <div class="card"><h3>Green</h3><div class="stat-value" style="color:var(--green)">${greenCount}</div></div>
+            <div class="card"><h3>Yellow</h3><div class="stat-value" style="color:var(--yellow)">${yellowCount}</div></div>
+            <div class="card"><h3>Red / Black</h3><div class="stat-value" style="color:var(--red)">${redCount + summary.filter(s => s.total_cor === 'B').length}</div></div>
+        `;
+
+        // Pie chart — overall colour distribution across all KPIs
+        destroyChart('chapterPie');
+        const colourCounts = { G: 0, Y: 0, R: 0, B: 0 };
+        kpi.forEach(r => { if (colourCounts[r.kpi_cor] !== undefined) colourCounts[r.kpi_cor]++; });
+        charts.chapterPie = new Chart(document.getElementById('chapterPieChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Green', 'Yellow', 'Red', 'Black'],
+                datasets: [{ data: [colourCounts.G, colourCounts.Y, colourCounts.R, colourCounts.B], backgroundColor: [COLOURS.G, COLOURS.Y, COLOURS.R, COLOURS.B], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        // Bar chart — members ranked
+        destroyChart('chapterBar');
+        const sorted = [...summary].sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
+        charts.chapterBar = new Chart(document.getElementById('chapterBarChart'), {
+            type: 'bar',
+            data: {
+                labels: sorted.map(s => s.member_name),
+                datasets: [{
+                    label: 'Total Points',
+                    data: sorted.map(s => s.total_pts),
+                    backgroundColor: sorted.map(s => COLOURS[s.total_cor] || COLOURS.B),
+                    borderRadius: 4,
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, max: 100 } } }
+        });
+
+        // Full table
+        let html = `<table><thead><tr>
+            <th>Member</th><th class="text-center">Overall</th>
+            <th class="text-center">Referrals</th><th class="text-center">1-to-1s</th>
+            <th class="text-center">Visitors</th><th class="text-center">CEUs</th>
+            <th class="text-center">Attendance</th><th class="text-right">Total Pts</th>
+        </tr></thead><tbody>`;
+
+        const byMember = {};
+        kpi.forEach(r => { if (!byMember[r.member_name]) byMember[r.member_name] = {}; byMember[r.member_name][r.kpi] = r; });
+        const kpiOrder = ['REFERRALS', "ONE TO ONE's", 'VISITORS', 'CHAPTER EDUCATION UNITS', 'ATTENDANCE'];
+
+        sorted.forEach(s => {
+            const m = byMember[s.member_name] || {};
+            html += `<tr>
+                <td class="clickable" onclick="selectMember('${s.member_name.replace(/'/g, "\\'")}')">${s.member_name}</td>
+                <td class="text-center"><span class="tl tl-${s.total_cor}"><span class="dot dot-${s.total_cor}"></span>${COLOUR_NAMES[s.total_cor]}</span></td>`;
+            kpiOrder.forEach(k => {
+                const r = m[k];
+                if (r) {
+                    html += `<td class="text-center"><span class="tl tl-${r.kpi_cor}" style="font-size:0.8rem;"><span class="dot dot-${r.kpi_cor}"></span>${r.kpi_pts}</span></td>`;
+                } else {
+                    html += `<td class="text-center">—</td>`;
+                }
+            });
+            html += `<td class="text-right" style="font-weight:700;color:${COLOURS[s.total_cor]}">${s.total_pts}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('chapterTable').innerHTML = html;
+    }
+
+    function selectMember(name) {
+        selectedScorecardMember = name;
+        document.getElementById('memberSelect').value = '';
+        document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-tab="scorecards"]').classList.add('active');
+        document.getElementById('tab-scorecards').classList.add('active');
+        refresh();
+    }
+
+    // --- TRENDS ---
+    let trendAllSummary = [];
+    let trendAllKpi = [];
+    let trendMemberVisible = {};  // { memberName: true/false }
+    let trendMemberColours = {};  // { memberName: '#hex' }
+
+    // Generate distinct colours for up to ~30 members
+    function generateMemberColour(index, total) {
+        const hue = (index * 360 / total) % 360;
+        return `hsl(${hue}, 65%, 55%)`;
+    }
+
+    function renderTrends() {
+        const member = document.getElementById('memberSelect').value;
+        const periods = state.periods;
+
+        // Client-side filtering from pre-loaded data
+        let allSummary = state.allSummary;
+        let allKpi = state.allKpi;
+        if (member) {
+            allSummary = allSummary.filter(s => s.member_name === member);
+            allKpi = allKpi.filter(k => k.member_name === member);
+        }
+        trendAllSummary = allSummary;
+        trendAllKpi = allKpi;
+
+        // Get unique member names sorted by latest total_pts desc
+        const latestPeriod = periods[periods.length - 1];
+        const latestSorted = allSummary.filter(s => s.report_period === latestPeriod).sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
+        const allMemberNames = latestSorted.map(s => s.member_name);
+
+        // Assign colours if not yet done or member list changed
+        if (Object.keys(trendMemberColours).length !== allMemberNames.length) {
+            trendMemberColours = {};
+            allMemberNames.forEach((name, i) => {
+                trendMemberColours[name] = generateMemberColour(i, allMemberNames.length);
+            });
+        }
+
+        // Init visibility: all visible by default on first load
+        if (Object.keys(trendMemberVisible).length === 0) {
+            allMemberNames.forEach(name => { trendMemberVisible[name] = true; });
+        }
+        // Add any new members
+        allMemberNames.forEach(name => {
+            if (trendMemberVisible[name] === undefined) trendMemberVisible[name] = true;
+        });
+
+        // Build toggle chips
+        const toggleContainer = document.getElementById('trendMemberToggles');
+        if (toggleContainer) {
+            let tHtml = '';
+            allMemberNames.forEach(name => {
+                const vis = trendMemberVisible[name];
+                const col = trendMemberColours[name];
+                const latestS = latestSorted.find(s => s.member_name === name);
+                const cor = latestS?.total_cor || 'B';
+                tHtml += `<label style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.6rem;border-radius:6px;font-size:0.78rem;cursor:pointer;border:1px solid ${vis ? col : 'var(--border)'};background:${vis ? col + '18' : 'transparent'};opacity:${vis ? 1 : 0.4};transition:all 0.15s;white-space:nowrap;">
+                    <input type="checkbox" ${vis ? 'checked' : ''} onchange="toggleTrendMember('${name.replace(/'/g, "\\'")}')" style="display:none;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></span>
+                    <span>${name}</span>
+                    <span class="dot dot-${cor}" style="width:7px;height:7px;"></span>
+                </label>`;
+            });
+            toggleContainer.innerHTML = tHtml;
+        }
+
+        // Build chart datasets for visible members
+        destroyChart('trend');
+        const avgByPeriod = {};
+        allSummary.forEach(s => {
+            if (!avgByPeriod[s.report_period]) avgByPeriod[s.report_period] = { sum: 0, count: 0 };
+            avgByPeriod[s.report_period].sum += (s.total_pts || 0);
+            avgByPeriod[s.report_period].count++;
+        });
+
+        const visibleMembers = allMemberNames.filter(n => trendMemberVisible[n]);
+        const datasets = visibleMembers.map(name => ({
+            label: name,
+            data: periods.map(p => { const r = allSummary.find(s => s.report_period === p && s.member_name === name); return r ? r.total_pts : null; }),
+            borderColor: trendMemberColours[name],
+            backgroundColor: trendMemberColours[name] + '18',
+            tension: 0.3, pointRadius: visibleMembers.length > 10 ? 1 : 3, borderWidth: visibleMembers.length > 10 ? 1.5 : 2,
+        }));
+
+        // Always add chapter average
+        datasets.push({
+            label: 'Chapter Avg',
+            data: periods.map(p => avgByPeriod[p] ? +(avgByPeriod[p].sum / avgByPeriod[p].count).toFixed(1) : null),
+            borderColor: '#9a9aa6', borderDash: [6, 3], tension: 0.3, pointRadius: 2, borderWidth: 2,
+        });
+
+        charts.trend = new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: { labels: periods, datasets },
+            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false },
+                scales: { y: { beginAtZero: true, max: 100 } },
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { title: (items) => items[0]?.label || '' } } } }
+        });
+
+        // --- % Green trend ---
+        destroyChart('greenPct');
+        const greenPctData = periods.map(p => {
+            const rows = allKpi.filter(k => k.report_period === p);
+            if (!rows.length) return 0;
+            const greenCount = rows.filter(r => r.kpi_cor === 'G').length;
+            return +((greenCount / rows.length) * 100).toFixed(1);
+        });
+
+        charts.greenPct = new Chart(document.getElementById('greenPctChart'), {
+            type: 'line',
+            data: {
+                labels: periods,
+                datasets: [{
+                    label: '% Green',
+                    data: greenPctData,
+                    borderColor: COLOURS.G,
+                    backgroundColor: COLOURS.G + '20',
+                    fill: true, tension: 0.3, pointRadius: 5, borderWidth: 2.5,
+                    pointBackgroundColor: COLOURS.G,
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => ctx.parsed.y + '% of KPI scores are Green' } } } }
+        });
+
+        // --- 5 mini KPI trend charts ---
+        const kpiNames = ['REFERRALS', "ONE TO ONE's", 'VISITORS', 'CHAPTER EDUCATION UNITS', 'ATTENDANCE'];
+        const kpiColours = ['#CF2030', '#22c55e', '#eab308', '#a78bfa', '#f472b6'];
+
+        kpiNames.forEach((kpiName, i) => {
+            destroyChart('kpiMini' + i);
+            const filtered = allKpi.filter(k => k.kpi === kpiName);
+            const data = periods.map(p => {
+                const rows = filtered.filter(k => k.report_period === p);
+                if (!rows.length) return 0;
+                return +(rows.reduce((a, r) => a + (r.kpi_pts || 0), 0) / rows.length).toFixed(1);
+            });
+            const latestVal = data[data.length - 1] || 0;
+
+            charts['kpiMini' + i] = new Chart(document.getElementById('kpiMini' + i), {
+                type: 'line',
+                data: {
+                    labels: periods,
+                    datasets: [{
+                        data,
+                        borderColor: kpiColours[i],
+                        backgroundColor: kpiColours[i] + '20',
+                        fill: true, tension: 0.3, pointRadius: 3, borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 20, ticks: { display: false }, grid: { display: false } },
+                        x: { ticks: { display: false }, grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => ctx.parsed.y + ' / 20 avg' } },
+                    }
+                },
+                plugins: [{
+                    id: 'valueLabel',
+                    afterDraw(chart) {
+                        const ctx = chart.ctx;
+                        ctx.save();
+                        ctx.font = 'bold 14px -apple-system, sans-serif';
+                        ctx.fillStyle = kpiColours[i];
+                        ctx.textAlign = 'center';
+                        ctx.fillText(latestVal + '/20', chart.width / 2, 16);
+                        ctx.restore();
+                    }
+                }]
+            });
+        });
+    }
+
+    // --- Trend member toggle helpers ---
+    function toggleTrendMember(name) {
+        trendMemberVisible[name] = !trendMemberVisible[name];
+        renderTrendChart();
+    }
+
+    function trendSelectAll() {
+        Object.keys(trendMemberVisible).forEach(k => trendMemberVisible[k] = true);
+        renderTrendChart();
+    }
+
+    function trendSelectNone() {
+        Object.keys(trendMemberVisible).forEach(k => trendMemberVisible[k] = false);
+        renderTrendChart();
+    }
+
+    function trendSelectGreen() {
+        const latestPeriod = state.periods[state.periods.length - 1];
+        Object.keys(trendMemberVisible).forEach(name => {
+            const s = trendAllSummary.find(s => s.member_name === name && s.report_period === latestPeriod);
+            trendMemberVisible[name] = s?.total_cor === 'G';
+        });
+        renderTrendChart();
+    }
+
+    function trendSelectNonGreen() {
+        const latestPeriod = state.periods[state.periods.length - 1];
+        Object.keys(trendMemberVisible).forEach(name => {
+            const s = trendAllSummary.find(s => s.member_name === name && s.report_period === latestPeriod);
+            trendMemberVisible[name] = s?.total_cor !== 'G';
+        });
+        renderTrendChart();
+    }
+
+    function renderTrendChart() {
+        // Re-render just the trend chart + toggle chips without re-fetching data
+        const periods = state.periods;
+        const latestPeriod = periods[periods.length - 1];
+        const latestSorted = trendAllSummary.filter(s => s.report_period === latestPeriod).sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
+        const allMemberNames = latestSorted.map(s => s.member_name);
+
+        // Update toggle chips
+        const toggleContainer = document.getElementById('trendMemberToggles');
+        if (toggleContainer) {
+            let tHtml = '';
+            allMemberNames.forEach(name => {
+                const vis = trendMemberVisible[name];
+                const col = trendMemberColours[name];
+                const latestS = latestSorted.find(s => s.member_name === name);
+                const cor = latestS?.total_cor || 'B';
+                tHtml += `<label style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.6rem;border-radius:6px;font-size:0.78rem;cursor:pointer;border:1px solid ${vis ? col : 'var(--border)'};background:${vis ? col + '18' : 'transparent'};opacity:${vis ? 1 : 0.4};transition:all 0.15s;white-space:nowrap;">
+                    <input type="checkbox" ${vis ? 'checked' : ''} onchange="toggleTrendMember('${name.replace(/'/g, "\\'")}')" style="display:none;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></span>
+                    <span>${name}</span>
+                    <span class="dot dot-${cor}" style="width:7px;height:7px;"></span>
+                </label>`;
+            });
+            toggleContainer.innerHTML = tHtml;
+        }
+
+        // Rebuild chart
+        destroyChart('trend');
+        const avgByPeriod = {};
+        trendAllSummary.forEach(s => {
+            if (!avgByPeriod[s.report_period]) avgByPeriod[s.report_period] = { sum: 0, count: 0 };
+            avgByPeriod[s.report_period].sum += (s.total_pts || 0);
+            avgByPeriod[s.report_period].count++;
+        });
+
+        const visibleMembers = allMemberNames.filter(n => trendMemberVisible[n]);
+        const datasets = visibleMembers.map(name => ({
+            label: name,
+            data: periods.map(p => { const r = trendAllSummary.find(s => s.report_period === p && s.member_name === name); return r ? r.total_pts : null; }),
+            borderColor: trendMemberColours[name],
+            backgroundColor: trendMemberColours[name] + '18',
+            tension: 0.3, pointRadius: visibleMembers.length > 10 ? 1 : 3, borderWidth: visibleMembers.length > 10 ? 1.5 : 2,
+        }));
+
+        datasets.push({
+            label: 'Chapter Avg',
+            data: periods.map(p => avgByPeriod[p] ? +(avgByPeriod[p].sum / avgByPeriod[p].count).toFixed(1) : null),
+            borderColor: '#9a9aa6', borderDash: [6, 3], tension: 0.3, pointRadius: 2, borderWidth: 2,
+        });
+
+        charts.trend = new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: { labels: periods, datasets },
+            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false },
+                scales: { y: { beginAtZero: true, max: 100 } },
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { title: (items) => items[0]?.label || '' } } } }
+        });
+    }
+
+    // --- Theme ---
+    function getThemeColors() {
+        const style = getComputedStyle(document.documentElement);
+        return {
+            text: style.getPropertyValue('--chart-text').trim(),
+            grid: style.getPropertyValue('--chart-grid').trim(),
+        };
+    }
+
+    function applyChartTheme() {
+        const c = getThemeColors();
+        Chart.defaults.color = c.text;
+        Chart.defaults.borderColor = c.grid;
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+    }
+
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('themeToggle').innerHTML = '&#9788;';
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            document.getElementById('themeToggle').innerHTML = '&#9790;';
+        }
+        localStorage.setItem('bni-theme', theme);
+        applyChartTheme();
+    }
+
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        // Re-render all charts with new colours
+        refresh();
+    }
+
+    // Apply saved theme on load (default: light)
+    applyTheme(localStorage.getItem('bni-theme') || 'light');
+
+    // --- Events ---
+    document.getElementById('periodSelect').addEventListener('change', refresh);
+    document.getElementById('memberSelect').addEventListener('change', refresh);
+
+    // --- Boot ---
+    init();
+    </script>
+</body>
+</html>
