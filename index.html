@@ -1398,15 +1398,15 @@
         const allPeriods = [...new Set(chapterSummary.map(c => c.report_period))].sort();
         const latestPeriod = allPeriods[allPeriods.length - 1];
 
-        // All regional chapters sorted by latest pts
+        // All regional chapters sorted by latest pts (including ours)
         const allRegChapters = chapterSummary
-            .filter(c => c.source === 'api' && c.report_period === latestPeriod && c.chapter_name !== OUR_CHAPTER)
+            .filter(c => c.source === 'api' && c.report_period === latestPeriod)
             .sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
         const chapterNames = allRegChapters.map(c => c.chapter_name);
 
-        // Init selected set on first run (default top 10)
+        // Init selected set on first run (default all)
         if (!state._compareChapterSelected) {
-            state._compareChapterSelected = new Set(chapterNames.slice(0, 10));
+            state._compareChapterSelected = new Set(chapterNames);
         }
         // Store refs for helpers
         state._compareAllChapters = chapterNames;
@@ -1414,7 +1414,7 @@
         // Build toggle chips (matching member toggle style)
         const top10Colors = ['#6366f1','#06b6d4','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316','#84cc16','#a855f7','#0ea5e9','#d946ef','#22d3ee','#fb923c','#4ade80','#c084fc','#2dd4bf','#f43f5e','#a3e635','#818cf8'];
         const colorMap = {};
-        chapterNames.forEach((n, i) => { colorMap[n] = top10Colors[i % top10Colors.length]; });
+        chapterNames.forEach((n, i) => { colorMap[n] = n === OUR_CHAPTER ? '#CF2030' : top10Colors[i % top10Colors.length]; });
         state._compareColorMap = colorMap;
         state._compareChapterData = allRegChapters;
 
@@ -1499,11 +1499,6 @@
         const tc = getThemeColors();
         const allPeriods = [...new Set(chapterSummary.map(c => c.report_period))].sort();
 
-        // Our chapter (always shown)
-        const ourData = allPeriods.map(p => {
-            const r = chapterSummary.find(c => c.chapter_name === OUR_CHAPTER && c.source === 'api' && c.report_period === p);
-            return r ? r.total_pts : null;
-        });
         // Averages
         const regAvgData = allPeriods.map(p => {
             const rows = chapterSummary.filter(c => c.source === 'api' && c.report_period === p);
@@ -1513,8 +1508,9 @@
             const rows = chapterSummary.filter(c => c.source === 'australia_pdf' && c.report_period === p);
             return rows.length ? +(rows.reduce((s, r) => s + (r.total_pts || 0), 0) / rows.length).toFixed(1) : null;
         });
-        // Selected chapter datasets
+        // Selected chapter datasets (our chapter gets thicker line + bigger dots)
         const chapterDatasets = [...selected].map(name => {
+            const isOurs = name === OUR_CHAPTER;
             const data = allPeriods.map(p => {
                 const r = chapterSummary.find(c => c.chapter_name === name && c.source === 'api' && c.report_period === p);
                 return r ? r.total_pts : null;
@@ -1523,9 +1519,9 @@
                 label: name.replace('BNI ', ''),
                 data,
                 borderColor: colorMap[name] || '#999',
-                borderWidth: 1.5,
+                borderWidth: isOurs ? 3.5 : 1.5,
                 tension: 0.3,
-                pointRadius: 2,
+                pointRadius: isOurs ? 5 : 2,
                 fill: false,
             };
         });
@@ -1538,7 +1534,6 @@
                     ...chapterDatasets,
                     { label: 'Regional Avg', data: regAvgData, borderColor: tc.text, borderDash: [6, 3], borderWidth: 2, tension: 0.3, pointRadius: 0, fill: false },
                     { label: 'National Avg', data: natAvgData, borderColor: '#eab308', borderDash: [3, 3], borderWidth: 2, tension: 0.3, pointRadius: 0, fill: false },
-                    { label: OUR_CHAPTER, data: ourData, borderColor: '#CF2030', borderWidth: 3.5, tension: 0.3, pointRadius: 5, fill: false },
                 ]
             },
             options: {
