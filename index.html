@@ -652,13 +652,35 @@
             <div id="compare-trends" class="compare-sub" style="display:none;">
                 <div class="card" style="margin-bottom:1.25rem;">
                     <h3>Regional Ranking Over Time — Melbourne Central</h3>
-                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Rank position of the top 10 regional chapters over time. Lower is better (#1 = top).</p>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Rank position over time. Lower is better (#1 = top). Use the toggles below to show/hide chapters.</p>
                     <div class="chart-container" style="height:400px;"><canvas id="regionalRankChart"></canvas></div>
+                    <div style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                            <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:600;">Show Chapters</span>
+                            <div style="display:flex;gap:0.5rem;">
+                                <button onclick="regRankSelectAll()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">All</button>
+                                <button onclick="regRankClear()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">None</button>
+                                <button onclick="regRankTop10()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">Top 10</button>
+                            </div>
+                        </div>
+                        <div id="regRankToggles" style="display:flex;flex-wrap:wrap;gap:0.35rem;max-height:160px;overflow-y:auto;"></div>
+                    </div>
                 </div>
                 <div class="card">
                     <h3>National Ranking Over Time — Australia</h3>
-                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Rank position of the top 10 national chapters over time, plus our chapter. Lower is better (#1 = top).</p>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Rank position over time, always including our chapter. Lower is better (#1 = top).</p>
                     <div class="chart-container" style="height:400px;"><canvas id="nationalRankChart"></canvas></div>
+                    <div style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                            <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:600;">Show Chapters</span>
+                            <div style="display:flex;gap:0.5rem;">
+                                <button onclick="natRankSelectAll()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">All</button>
+                                <button onclick="natRankClear()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">None</button>
+                                <button onclick="natRankTop10()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">Top 10</button>
+                            </div>
+                        </div>
+                        <div id="natRankToggles" style="display:flex;flex-wrap:wrap;gap:0.35rem;max-height:160px;overflow-y:auto;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1665,13 +1687,10 @@
 
     function renderCompareTrends() {
         const { chapterSummary } = state;
-        const tc = getThemeColors();
-        const top10Colors = ['#6366f1','#06b6d4','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316','#84cc16','#a855f7'];
+        const top10Colors = ['#6366f1','#06b6d4','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316','#84cc16','#a855f7','#0ea5e9','#d946ef','#22d3ee','#fb923c','#4ade80','#c084fc','#2dd4bf','#f43f5e','#a3e635','#818cf8'];
 
-        // --- Regional ranking over time ---
-        destroyChart('regionalRankChart');
+        // --- Compute regional ranks ---
         const regPeriods = [...new Set(chapterSummary.filter(c => c.source === 'api').map(c => c.report_period))].sort();
-        // Compute rank per period
         const regRanks = {};
         regPeriods.forEach(p => {
             const sorted = chapterSummary.filter(c => c.source === 'api' && c.report_period === p)
@@ -1681,41 +1700,25 @@
                 regRanks[ch.chapter_name][p] = idx + 1;
             });
         });
-        // Top 10 by latest period
         const latestRegPeriod = regPeriods[regPeriods.length - 1];
-        const regTop10 = Object.entries(regRanks)
+        const regAllNames = Object.entries(regRanks)
             .map(([name, ranks]) => ({ name, latestRank: ranks[latestRegPeriod] || 999 }))
             .sort((a, b) => a.latestRank - b.latestRank)
-            .slice(0, 10)
             .map(c => c.name);
+        const regColorMap = {};
+        regAllNames.forEach((n, i) => { regColorMap[n] = n === OUR_CHAPTER ? '#CF2030' : top10Colors[i % top10Colors.length]; });
 
-        const regDatasets = regTop10.map((name, idx) => ({
-            label: name.replace('BNI ', ''),
-            data: regPeriods.map(p => regRanks[name]?.[p] ?? null),
-            borderColor: name === OUR_CHAPTER ? '#CF2030' : top10Colors[idx % top10Colors.length],
-            borderWidth: name === OUR_CHAPTER ? 3.5 : 1.5,
-            pointRadius: name === OUR_CHAPTER ? 5 : 2,
-            tension: 0.3,
-            fill: false,
-        }));
+        // Init regional selected (default top 10)
+        if (!state._regRankSelected) state._regRankSelected = new Set(regAllNames.slice(0, 10));
+        state._regRankAllNames = regAllNames;
+        state._regRankColorMap = regColorMap;
+        state._regRanks = regRanks;
+        state._regPeriods = regPeriods;
 
-        const maxRegRank = Math.max(...regTop10.map(n => Math.max(...regPeriods.map(p => regRanks[n]?.[p] ?? 0))), 10);
-        charts['regionalRankChart'] = new Chart(document.getElementById('regionalRankChart'), {
-            type: 'line',
-            data: { labels: regPeriods, datasets: regDatasets },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: tc.text, font: { size: 11 } }, position: 'bottom' } },
-                scales: {
-                    x: { ticks: { color: tc.text }, grid: { color: tc.grid } },
-                    y: { reverse: true, min: 1, max: maxRegRank + 1, ticks: { color: tc.text, stepSize: 1, callback: v => '#' + v }, grid: { color: tc.grid },
-                        title: { display: true, text: 'Rank', color: tc.text } }
-                }
-            }
-        });
+        buildRankToggles('regRankToggles', regAllNames, state._regRankSelected, regColorMap, 'toggleRegRank');
+        renderRegRankChart();
 
-        // --- National ranking over time ---
-        destroyChart('nationalRankChart');
+        // --- Compute national ranks ---
         const natPeriods = [...new Set(chapterSummary.filter(c => c.source === 'australia_pdf').map(c => c.report_period))].sort();
         const natRanks = {};
         natPeriods.forEach(p => {
@@ -1726,43 +1729,110 @@
                 natRanks[ch.chapter_name][p] = idx + 1;
             });
         });
-        // Top 10 by latest period + our chapter
         const latestNatPeriod = natPeriods[natPeriods.length - 1];
-        const natTop10Names = Object.entries(natRanks)
+        const natAllNames = Object.entries(natRanks)
             .map(([name, ranks]) => ({ name, latestRank: ranks[latestNatPeriod] || 999 }))
             .sort((a, b) => a.latestRank - b.latestRank)
-            .slice(0, 10)
             .map(c => c.name);
-        // Ensure our chapter is included
-        const natShowNames = [...natTop10Names];
-        if (!natShowNames.includes(OUR_CHAPTER) && natRanks[OUR_CHAPTER]) {
-            natShowNames.push(OUR_CHAPTER);
+        const natColorMap = {};
+        natAllNames.forEach((n, i) => { natColorMap[n] = n === OUR_CHAPTER ? '#CF2030' : top10Colors[i % top10Colors.length]; });
+
+        // Init national selected (default top 10 + ours)
+        if (!state._natRankSelected) {
+            state._natRankSelected = new Set(natAllNames.slice(0, 10));
+            if (natRanks[OUR_CHAPTER]) state._natRankSelected.add(OUR_CHAPTER);
         }
+        state._natRankAllNames = natAllNames;
+        state._natRankColorMap = natColorMap;
+        state._natRanks = natRanks;
+        state._natPeriods = natPeriods;
 
-        const natDatasets = natShowNames.map((name, idx) => ({
-            label: name.replace('BNI ', ''),
-            data: natPeriods.map(p => natRanks[name]?.[p] ?? null),
-            borderColor: name === OUR_CHAPTER ? '#CF2030' : top10Colors[idx % top10Colors.length],
-            borderWidth: name === OUR_CHAPTER ? 3.5 : 1.5,
-            pointRadius: name === OUR_CHAPTER ? 5 : 2,
-            tension: 0.3,
-            fill: false,
-        }));
+        buildRankToggles('natRankToggles', natAllNames, state._natRankSelected, natColorMap, 'toggleNatRank');
+        renderNatRankChart();
+    }
 
-        const maxNatRank = Math.max(...natShowNames.map(n => Math.max(...natPeriods.map(p => natRanks[n]?.[p] ?? 0))), 10);
-        charts['nationalRankChart'] = new Chart(document.getElementById('nationalRankChart'), {
+    function buildRankToggles(containerId, allNames, selected, colorMap, toggleFn) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        let html = '';
+        allNames.forEach(name => {
+            const vis = selected.has(name);
+            const col = colorMap[name] || '#999';
+            const short = name.replace('BNI ', '');
+            html += `<label style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.6rem;border-radius:6px;font-size:0.78rem;cursor:pointer;border:1px solid ${vis ? col : 'var(--border)'};background:${vis ? col + '18' : 'transparent'};opacity:${vis ? 1 : 0.4};transition:all 0.15s;white-space:nowrap;">
+                <input type="checkbox" ${vis ? 'checked' : ''} onchange="${toggleFn}('${name.replace(/'/g, "\\'")}')" style="display:none;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></span>
+                <span>${short}</span>
+            </label>`;
+        });
+        el.innerHTML = html;
+    }
+
+    function _renderRankChart(chartKey, periods, ranks, selected, colorMap) {
+        destroyChart(chartKey);
+        const tc = getThemeColors();
+        const datasets = [...selected].map(name => {
+            const isOurs = name === OUR_CHAPTER;
+            return {
+                label: name.replace('BNI ', ''),
+                data: periods.map(p => ranks[name]?.[p] ?? null),
+                borderColor: colorMap[name] || '#999',
+                borderWidth: isOurs ? 3.5 : 1.5,
+                pointRadius: isOurs ? 5 : 2,
+                tension: 0.3,
+                fill: false,
+            };
+        });
+        const allRanks = [...selected].flatMap(n => periods.map(p => ranks[n]?.[p]).filter(v => v != null));
+        const maxRank = Math.max(...allRanks, 10);
+        charts[chartKey] = new Chart(document.getElementById(chartKey), {
             type: 'line',
-            data: { labels: natPeriods, datasets: natDatasets },
+            data: { labels: periods, datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: tc.text, font: { size: 11 } }, position: 'bottom' } },
+                plugins: { legend: { display: false } },
                 scales: {
                     x: { ticks: { color: tc.text }, grid: { color: tc.grid } },
-                    y: { reverse: true, min: 1, max: maxNatRank + 2, ticks: { color: tc.text, stepSize: 5, callback: v => '#' + v }, grid: { color: tc.grid },
-                        title: { display: true, text: 'Rank', color: tc.text } }
+                    y: { reverse: true, min: 1, max: maxRank + 2,
+                        ticks: { color: tc.text, stepSize: maxRank > 20 ? 5 : 1, callback: v => '#' + v },
+                        grid: { color: tc.grid }, title: { display: true, text: 'Rank', color: tc.text } }
                 }
             }
         });
+    }
+
+    function renderRegRankChart() {
+        _renderRankChart('regionalRankChart', state._regPeriods, state._regRanks, state._regRankSelected, state._regRankColorMap);
+    }
+    function renderNatRankChart() {
+        _renderRankChart('nationalRankChart', state._natPeriods, state._natRanks, state._natRankSelected, state._natRankColorMap);
+    }
+
+    function toggleRegRank(name) {
+        const sel = state._regRankSelected;
+        if (sel.has(name)) sel.delete(name); else sel.add(name);
+        buildRankToggles('regRankToggles', state._regRankAllNames, sel, state._regRankColorMap, 'toggleRegRank');
+        renderRegRankChart();
+    }
+    function toggleNatRank(name) {
+        const sel = state._natRankSelected;
+        if (sel.has(name)) sel.delete(name); else sel.add(name);
+        buildRankToggles('natRankToggles', state._natRankAllNames, sel, state._natRankColorMap, 'toggleNatRank');
+        renderNatRankChart();
+    }
+
+    function regRankSelectAll() { state._regRankSelected = new Set(state._regRankAllNames); buildRankToggles('regRankToggles', state._regRankAllNames, state._regRankSelected, state._regRankColorMap, 'toggleRegRank'); renderRegRankChart(); }
+    function regRankClear() { state._regRankSelected = new Set(); buildRankToggles('regRankToggles', state._regRankAllNames, state._regRankSelected, state._regRankColorMap, 'toggleRegRank'); renderRegRankChart(); }
+    function regRankTop10() { state._regRankSelected = new Set((state._regRankAllNames || []).slice(0, 10)); buildRankToggles('regRankToggles', state._regRankAllNames, state._regRankSelected, state._regRankColorMap, 'toggleRegRank'); renderRegRankChart(); }
+
+    function natRankSelectAll() { state._natRankSelected = new Set(state._natRankAllNames); buildRankToggles('natRankToggles', state._natRankAllNames, state._natRankSelected, state._natRankColorMap, 'toggleNatRank'); renderNatRankChart(); }
+    function natRankClear() { state._natRankSelected = new Set(); buildRankToggles('natRankToggles', state._natRankAllNames, state._natRankSelected, state._natRankColorMap, 'toggleNatRank'); renderNatRankChart(); }
+    function natRankTop10() {
+        const top10 = new Set((state._natRankAllNames || []).slice(0, 10));
+        if (state._natRanks[OUR_CHAPTER]) top10.add(OUR_CHAPTER);
+        state._natRankSelected = top10;
+        buildRankToggles('natRankToggles', state._natRankAllNames, state._natRankSelected, state._natRankColorMap, 'toggleNatRank');
+        renderNatRankChart();
     }
 
     // --- Theme ---
