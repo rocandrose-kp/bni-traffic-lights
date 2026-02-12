@@ -333,6 +333,10 @@
             <label>Member</label>
             <select id="memberSelect"><option value="">All Members</option></select>
         </div>
+        <div style="display:flex;align-items:flex-end;gap:0.35rem;">
+            <button id="setDefaultBtn" onclick="setDefaultMember()" title="Set current member as your default" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all 0.2s;">&#9734;</button>
+            <button id="clearDefaultBtn" onclick="clearDefaultMember()" title="Clear default member" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);height:36px;border-radius:8px;cursor:pointer;font-size:0.7rem;padding:0 0.5rem;display:none;align-items:center;transition:all 0.2s;">&times; Clear default</button>
+        </div>
     </div>
 
     <div class="tab-bar">
@@ -623,12 +627,44 @@
             mSel.appendChild(opt);
         });
 
+        // Restore saved selections from localStorage
+        const savedPeriod = localStorage.getItem('bni_period');
+        const savedMember = localStorage.getItem('bni_member');
+        const defaultMember = localStorage.getItem('bni_default_member');
+        const savedTab = localStorage.getItem('bni_tab');
+
+        // Period: use saved, or latest
+        if (savedPeriod && periods.includes(savedPeriod)) pSel.value = savedPeriod;
+
+        // Member: default profile takes priority, then last-used, then 'All'
+        const memberToSelect = defaultMember || savedMember || '';
+        if (memberToSelect && members.some(m => m.name === memberToSelect)) {
+            mSel.value = memberToSelect;
+        }
+
+        // Tab: restore last active tab
+        if (savedTab) {
+            const tabBtn = document.querySelector(`.tab-bar button[data-tab="${savedTab}"]`);
+            if (tabBtn) {
+                document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                tabBtn.classList.add('active');
+                document.getElementById('tab-' + savedTab).classList.add('active');
+            }
+        }
+
+        updateDefaultBtnUI();
         refresh();
     }
 
     function refresh() {
         const period = document.getElementById('periodSelect').value;
         const member = document.getElementById('memberSelect').value;
+
+        // Persist selections
+        localStorage.setItem('bni_period', period);
+        localStorage.setItem('bni_member', member);
+        updateDefaultBtnUI();
 
         // Client-side filtering from pre-loaded data
         let kpi = state.allKpi.filter(r => r.report_period === period);
@@ -652,8 +688,39 @@
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            localStorage.setItem('bni_tab', btn.dataset.tab);
         });
     });
+
+    // --- DEFAULT MEMBER ("My Profile") ---
+    function setDefaultMember() {
+        const member = document.getElementById('memberSelect').value;
+        if (!member) { alert('Select a member first, then click ★ to set them as your default.'); return; }
+        localStorage.setItem('bni_default_member', member);
+        updateDefaultBtnUI();
+    }
+    function clearDefaultMember() {
+        localStorage.removeItem('bni_default_member');
+        updateDefaultBtnUI();
+    }
+    function updateDefaultBtnUI() {
+        const def = localStorage.getItem('bni_default_member');
+        const current = document.getElementById('memberSelect').value;
+        const setBtn = document.getElementById('setDefaultBtn');
+        const clearBtn = document.getElementById('clearDefaultBtn');
+        if (def) {
+            // Show filled star if current member IS the default
+            setBtn.innerHTML = current === def ? '&#9733;' : '&#9734;';
+            setBtn.style.color = current === def ? 'var(--accent)' : 'var(--text-muted)';
+            setBtn.title = current === def ? `${def} is your default` : `Set ${current || 'current member'} as default (currently: ${def})`;
+            clearBtn.style.display = 'flex';
+        } else {
+            setBtn.innerHTML = '&#9734;';
+            setBtn.style.color = 'var(--text-muted)';
+            setBtn.title = 'Set current member as your default';
+            clearBtn.style.display = 'none';
+        }
+    }
 
     // --- SCORECARDS ---
     let selectedScorecardMember = null;
