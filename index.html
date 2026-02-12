@@ -615,7 +615,7 @@
                 </div>
             </div>
             <div id="compare-overview" class="compare-sub active">
-                <div class="grid grid-3" style="margin-bottom:1.25rem;" id="compareStatCards"></div>
+                <div id="compareStatCards" style="margin-bottom:1.25rem;"></div>
                 <div class="card">
                     <h3>Chapter Score Over Time</h3>
                     <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Our chapter's total score vs the regional average and national average over time. The dashed lines are averages. Use the toggles below to show/hide chapters.</p>
@@ -1369,26 +1369,81 @@
             <div style="font-size:0.85rem;color:var(--text-muted);">National: <strong style="color:var(--text);">#${natRank}</strong> of ${natTotal}</div>
         `;
 
-        // --- Stat cards: our chapter KPIs vs regional avg ---
+        // --- Scorecard: our chapter KPIs (matching member scorecard style) ---
         const ourKpis = chapterKpi.filter(k => k.chapter_name === OUR_CHAPTER && k.report_period === period);
         const regKpis = chapterKpi.filter(k => k.report_period === period);
         const statEl = document.getElementById('compareStatCards');
         if (ourKpis.length) {
-            let html = '';
+            const totalPts = ours_reg ? ours_reg.total_pts : (ourKpis[0]?.total_pts || 0);
+            const totalCor = ours_reg ? (ours_reg.total_cor || 'G') : (ourKpis[0]?.total_cor || 'G');
+            let html = `<div class="card" style="padding:0;">
+                <div class="scorecard-header">
+                    <div>
+                        <h2>${OUR_CHAPTER}</h2>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">${period} &middot; ${OUR_REGION}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="score" style="color:${COLOURS[totalCor]}">${totalPts}<span style="font-size:0.8rem;color:var(--text-muted)">/100</span></div>
+                        <div><span class="tl tl-${totalCor}" style="font-size:0.8rem;"><span class="dot dot-${totalCor}"></span>${COLOUR_NAMES[totalCor]}</span></div>
+                    </div>
+                </div>`;
+
+            const CH_KPI_MAX = { 'SIZE': 15, 'GROW': 15, 'RET': 15, 'REF': 15, 'VIS': 15, 'CONV': 10, 'ATT': 15 };
+
             for (const kpi of ourKpis) {
                 const short = CH_KPI_SHORT[kpi.kpi_chave] || kpi.kpi;
-                const allForKpi = regKpis.filter(k => k.kpi_chave === kpi.kpi_chave);
-                const avgPts = allForKpi.length ? (allForKpi.reduce((s, k) => s + (k.kpi_pts || 0), 0) / allForKpi.length).toFixed(1) : '-';
+                const maxPts = CH_KPI_MAX[kpi.kpi_chave] || 15;
+                const pct = maxPts > 0 ? Math.round((kpi.kpi_pts / maxPts) * 100) : 0;
                 const cor = kpi.kpi_cor || 'G';
-                const diff = avgPts !== '-' ? (kpi.kpi_pts - parseFloat(avgPts)).toFixed(1) : '';
-                const diffStr = diff ? (diff > 0 ? `<span style="color:var(--green);">+${diff}</span>` : diff < 0 ? `<span style="color:var(--red);">${diff}</span>` : `<span style="color:var(--text-muted);">=</span>`) : '';
-                html += `<div class="card" style="text-align:center;">
-                    <h3>${short}</h3>
-                    <div><span class="tl tl-${cor}" style="font-size:1rem;">${kpi.kpi_pts} pts</span></div>
-                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">Qty: ${kpi.kpi_qnt != null ? kpi.kpi_qnt : '-'}</div>
-                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">Region avg: ${avgPts} ${diffStr}</div>
+                const isGreen = cor === 'G';
+
+                // Region average for this KPI
+                const allForKpi = regKpis.filter(k => k.kpi_chave === kpi.kpi_chave);
+                const avgPts = allForKpi.length ? (allForKpi.reduce((s, k) => s + (k.kpi_pts || 0), 0) / allForKpi.length).toFixed(1) : null;
+                const diff = avgPts !== null ? (kpi.kpi_pts - parseFloat(avgPts)).toFixed(1) : null;
+                const diffStr = diff !== null ? (diff > 0 ? `<span style="color:var(--green);">+${diff}</span>` : diff < 0 ? `<span style="color:var(--red);">${diff}</span>` : '') : '';
+
+                // Gap to next / green
+                let gapHtml = '';
+                if (isGreen) {
+                    gapHtml = `<div class="kpi-action" style="background:var(--green-bg);color:var(--green);text-align:center;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.8rem;">&#10003; Green</div>`;
+                } else {
+                    const parts = [];
+                    const toNextQnt = kpi.kpi_tonext_qnt != null ? Math.ceil(Math.abs(kpi.kpi_tonext_qnt)) : 0;
+                    const nextCor = kpi.kpi_tonext_cor || 'Y';
+                    const toMaxQnt = kpi.kpi_tomax_qnt != null ? Math.ceil(Math.abs(kpi.kpi_tomax_qnt)) : 0;
+                    const maxCor = kpi.kpi_tomax_cor || 'G';
+                    if (toNextQnt > 0 && nextCor !== cor) {
+                        parts.push(`<strong>+${toNextQnt}</strong> for <span class="tl tl-${nextCor}" style="font-size:0.75rem;padding:0.1rem 0.4rem;"><span class="dot dot-${nextCor}"></span>${COLOUR_NAMES[nextCor] || nextCor}</span>`);
+                    }
+                    if (toMaxQnt > 0 && maxCor === 'G') {
+                        parts.push(`<strong>+${toMaxQnt}</strong> for <span class="tl tl-G" style="font-size:0.75rem;padding:0.1rem 0.4rem;"><span class="dot dot-G"></span>Green</span>`);
+                    }
+                    if (!parts.length) parts.push('Maintain activity');
+                    gapHtml = `<div class="kpi-action">${parts.join(' &middot; ')}</div>`;
+                }
+
+                html += `<div style="border-bottom:1px solid var(--border);">
+                    <div class="kpi-row" style="border-bottom:none;">
+                        <div>
+                            <div class="kpi-name">${short}</div>
+                            <div class="progress-wrap"><div class="progress-bar progress-bar-${cor}" style="width:${pct}%"></div></div>
+                        </div>
+                        <div class="kpi-stat">
+                            <div class="val">${kpi.kpi_qnt != null ? (Number.isInteger(kpi.kpi_qnt) ? kpi.kpi_qnt : kpi.kpi_qnt.toFixed(2)) : '-'}</div>
+                            <div class="lbl">Count</div>
+                        </div>
+                        <div class="kpi-stat">
+                            <div class="val" style="color:${COLOURS[cor]}">${kpi.kpi_pts}<span style="font-size:0.7rem;color:var(--text-muted)">/${maxPts}</span></div>
+                            <div class="lbl"><span class="tl tl-${cor}" style="font-size:0.75rem;padding:0.1rem 0.4rem;"><span class="dot dot-${cor}"></span>${COLOUR_NAMES[cor]}</span></div>
+                        </div>
+                        <div>${gapHtml}</div>
+                    </div>
+                    <div style="padding:0 1.25rem 0.5rem 1.25rem;font-size:0.75rem;color:var(--text-muted);">Region avg pts: ${avgPts || '-'} ${diffStr}</div>
                 </div>`;
             }
+
+            html += `</div>`;
             statEl.innerHTML = html;
         } else {
             statEl.innerHTML = '<div class="card"><p style="color:var(--text-muted);">No chapter KPI data for this period.</p></div>';
