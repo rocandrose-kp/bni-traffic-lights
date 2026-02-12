@@ -612,6 +612,7 @@
                     <button class="active" data-subtab="compare-overview" onclick="switchCompareTab(this)">Overview</button>
                     <button data-subtab="compare-regional" onclick="switchCompareTab(this)">Regional</button>
                     <button data-subtab="compare-national" onclick="switchCompareTab(this)">National</button>
+                    <button data-subtab="compare-trends" onclick="switchCompareTab(this)">Trends</button>
                 </div>
             </div>
             <div id="compare-overview" class="compare-sub active">
@@ -646,6 +647,18 @@
                     <h3>National Ranking — Australia</h3>
                     <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Where our chapter sits among all Australian chapters. Showing top 20 + our chapter if outside top 20.</p>
                     <div style="overflow-x:auto;" id="compareNationalTable"></div>
+                </div>
+            </div>
+            <div id="compare-trends" class="compare-sub" style="display:none;">
+                <div class="card" style="margin-bottom:1.25rem;">
+                    <h3>Regional Ranking Over Time — Melbourne Central</h3>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Rank position of the top 10 regional chapters over time. Lower is better (#1 = top).</p>
+                    <div class="chart-container" style="height:400px;"><canvas id="regionalRankChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <h3>National Ranking Over Time — Australia</h3>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Rank position of the top 10 national chapters over time, plus our chapter. Lower is better (#1 = top).</p>
+                    <div class="chart-container" style="height:400px;"><canvas id="nationalRankChart"></canvas></div>
                 </div>
             </div>
         </div>
@@ -1478,6 +1491,9 @@
         // Render chart with selected chapters
         renderCompareChart();
 
+        // Render ranking trend charts
+        renderCompareTrends();
+
         // --- Regional table ---
         const regTableEl = document.getElementById('compareRegionalTable');
         if (regional.length) {
@@ -1645,6 +1661,108 @@
         );
         buildCompareToggles();
         renderCompareChart();
+    }
+
+    function renderCompareTrends() {
+        const { chapterSummary } = state;
+        const tc = getThemeColors();
+        const top10Colors = ['#6366f1','#06b6d4','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316','#84cc16','#a855f7'];
+
+        // --- Regional ranking over time ---
+        destroyChart('regionalRankChart');
+        const regPeriods = [...new Set(chapterSummary.filter(c => c.source === 'api').map(c => c.report_period))].sort();
+        // Compute rank per period
+        const regRanks = {};
+        regPeriods.forEach(p => {
+            const sorted = chapterSummary.filter(c => c.source === 'api' && c.report_period === p)
+                .sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
+            sorted.forEach((ch, idx) => {
+                if (!regRanks[ch.chapter_name]) regRanks[ch.chapter_name] = {};
+                regRanks[ch.chapter_name][p] = idx + 1;
+            });
+        });
+        // Top 10 by latest period
+        const latestRegPeriod = regPeriods[regPeriods.length - 1];
+        const regTop10 = Object.entries(regRanks)
+            .map(([name, ranks]) => ({ name, latestRank: ranks[latestRegPeriod] || 999 }))
+            .sort((a, b) => a.latestRank - b.latestRank)
+            .slice(0, 10)
+            .map(c => c.name);
+
+        const regDatasets = regTop10.map((name, idx) => ({
+            label: name.replace('BNI ', ''),
+            data: regPeriods.map(p => regRanks[name]?.[p] ?? null),
+            borderColor: name === OUR_CHAPTER ? '#CF2030' : top10Colors[idx % top10Colors.length],
+            borderWidth: name === OUR_CHAPTER ? 3.5 : 1.5,
+            pointRadius: name === OUR_CHAPTER ? 5 : 2,
+            tension: 0.3,
+            fill: false,
+        }));
+
+        const maxRegRank = Math.max(...regTop10.map(n => Math.max(...regPeriods.map(p => regRanks[n]?.[p] ?? 0))), 10);
+        charts['regionalRankChart'] = new Chart(document.getElementById('regionalRankChart'), {
+            type: 'line',
+            data: { labels: regPeriods, datasets: regDatasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: tc.text, font: { size: 11 } }, position: 'bottom' } },
+                scales: {
+                    x: { ticks: { color: tc.text }, grid: { color: tc.grid } },
+                    y: { reverse: true, min: 1, max: maxRegRank + 1, ticks: { color: tc.text, stepSize: 1, callback: v => '#' + v }, grid: { color: tc.grid },
+                        title: { display: true, text: 'Rank', color: tc.text } }
+                }
+            }
+        });
+
+        // --- National ranking over time ---
+        destroyChart('nationalRankChart');
+        const natPeriods = [...new Set(chapterSummary.filter(c => c.source === 'australia_pdf').map(c => c.report_period))].sort();
+        const natRanks = {};
+        natPeriods.forEach(p => {
+            const sorted = chapterSummary.filter(c => c.source === 'australia_pdf' && c.report_period === p)
+                .sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
+            sorted.forEach((ch, idx) => {
+                if (!natRanks[ch.chapter_name]) natRanks[ch.chapter_name] = {};
+                natRanks[ch.chapter_name][p] = idx + 1;
+            });
+        });
+        // Top 10 by latest period + our chapter
+        const latestNatPeriod = natPeriods[natPeriods.length - 1];
+        const natTop10Names = Object.entries(natRanks)
+            .map(([name, ranks]) => ({ name, latestRank: ranks[latestNatPeriod] || 999 }))
+            .sort((a, b) => a.latestRank - b.latestRank)
+            .slice(0, 10)
+            .map(c => c.name);
+        // Ensure our chapter is included
+        const natShowNames = [...natTop10Names];
+        if (!natShowNames.includes(OUR_CHAPTER) && natRanks[OUR_CHAPTER]) {
+            natShowNames.push(OUR_CHAPTER);
+        }
+
+        const natDatasets = natShowNames.map((name, idx) => ({
+            label: name.replace('BNI ', ''),
+            data: natPeriods.map(p => natRanks[name]?.[p] ?? null),
+            borderColor: name === OUR_CHAPTER ? '#CF2030' : top10Colors[idx % top10Colors.length],
+            borderWidth: name === OUR_CHAPTER ? 3.5 : 1.5,
+            pointRadius: name === OUR_CHAPTER ? 5 : 2,
+            tension: 0.3,
+            fill: false,
+        }));
+
+        const maxNatRank = Math.max(...natShowNames.map(n => Math.max(...natPeriods.map(p => natRanks[n]?.[p] ?? 0))), 10);
+        charts['nationalRankChart'] = new Chart(document.getElementById('nationalRankChart'), {
+            type: 'line',
+            data: { labels: natPeriods, datasets: natDatasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: tc.text, font: { size: 11 } }, position: 'bottom' } },
+                scales: {
+                    x: { ticks: { color: tc.text }, grid: { color: tc.grid } },
+                    y: { reverse: true, min: 1, max: maxNatRank + 2, ticks: { color: tc.text, stepSize: 5, callback: v => '#' + v }, grid: { color: tc.grid },
+                        title: { display: true, text: 'Rank', color: tc.text } }
+                }
+            }
+        });
     }
 
     // --- Theme ---
