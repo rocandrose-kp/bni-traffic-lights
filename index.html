@@ -106,6 +106,12 @@
         main { padding: 1.5rem 2rem; max-width: 1400px; margin: 0 auto; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .sub-tab-bar { display:flex; gap:0; border-bottom:2px solid var(--border); margin:0 -1.25rem; padding:0 1.25rem; }
+        .sub-tab-bar button { background:none; border:none; color:var(--text-muted); padding:0.5rem 1rem; font-size:0.85rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.2s; white-space:nowrap; }
+        .sub-tab-bar button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+        .sub-tab-bar button:hover { color:var(--text); }
+        .compare-sub { display:none; }
+        .compare-sub.active { display:block; }
         .grid { display: grid; gap: 1.25rem; }
         .grid-2 { grid-template-columns: 1fr 1fr; }
         .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
@@ -590,31 +596,57 @@
         <!-- CHAPTER COMPARISON TAB -->
         <div id="tab-compare" class="tab-content">
             <div class="card" style="margin-bottom:1.25rem;">
-                <h3>Our Chapter vs Region &amp; Australia</h3>
-                <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">See how BNI Business Accelerator stacks up against other chapters in Melbourne Central and across Australia.</p>
-                <div class="grid grid-2" style="margin-bottom:1rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
                     <div>
-                        <label style="color:var(--text-muted);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:0.25rem;">Compare Period</label>
-                        <select id="comparePeriodSelect" onchange="renderCompare()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:0.5rem 0.75rem;border-radius:6px;font-size:0.875rem;min-width:180px;"></select>
+                        <h3 style="margin-bottom:0.25rem;">Our Chapter vs Region &amp; Australia</h3>
+                        <p style="color:var(--text-muted);font-size:0.8rem;margin:0;">See how BNI Business Accelerator compares.</p>
                     </div>
-                    <div id="compareHighlight" style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;"></div>
+                    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                        <div id="compareHighlight" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;"></div>
+                        <div>
+                            <select id="comparePeriodSelect" onchange="renderCompare()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="sub-tab-bar">
+                    <button class="active" data-subtab="compare-overview" onclick="switchCompareTab(this)">Overview</button>
+                    <button data-subtab="compare-regional" onclick="switchCompareTab(this)">Regional</button>
+                    <button data-subtab="compare-national" onclick="switchCompareTab(this)">National</button>
                 </div>
             </div>
-            <div class="grid grid-3" style="margin-bottom:1.25rem;" id="compareStatCards"></div>
-            <div class="card" style="margin-bottom:1.25rem;">
-                <h3>Chapter Score Over Time</h3>
-                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Our chapter's total score vs the regional average and national average over time.</p>
-                <div class="chart-container chart-tall"><canvas id="compareLineChart"></canvas></div>
+            <div id="compare-overview" class="compare-sub active">
+                <div class="grid grid-3" style="margin-bottom:1.25rem;" id="compareStatCards"></div>
+                <div class="card">
+                    <h3>Chapter Score Over Time</h3>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Our chapter's total score vs the regional average and national average over time. The dashed lines are averages. Use the toggles below to show/hide chapters.</p>
+                    <div class="chart-container" style="height:400px;"><canvas id="compareLineChart"></canvas></div>
+                    <div style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                            <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:600;">Show Chapters</span>
+                            <div style="display:flex;gap:0.5rem;">
+                                <button onclick="compareChapterSelectAll()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">All</button>
+                                <button onclick="compareChapterClear()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">None</button>
+                                <button onclick="compareChapterSelectGreen()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--green-bg);color:var(--green);cursor:pointer;">Green</button>
+                                <button onclick="compareChapterSelectNotGreen()" style="font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--red-bg);color:var(--red);cursor:pointer;">Not Green</button>
+                            </div>
+                        </div>
+                        <div id="compareChapterToggles" style="display:flex;flex-wrap:wrap;gap:0.35rem;max-height:160px;overflow-y:auto;"></div>
+                    </div>
+                </div>
             </div>
-            <div class="card" style="margin-bottom:1.25rem;">
-                <h3>Regional Ranking — Melbourne Central</h3>
-                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">All chapters in our region for the selected period, ranked by total points. Our chapter is highlighted.</p>
-                <div style="overflow-x:auto;" id="compareRegionalTable"></div>
+            <div id="compare-regional" class="compare-sub" style="display:none;">
+                <div class="card">
+                    <h3>Regional Ranking — Melbourne Central</h3>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">All chapters in our region for the selected period, ranked by total points. Our chapter is highlighted.</p>
+                    <div style="overflow-x:auto;" id="compareRegionalTable"></div>
+                </div>
             </div>
-            <div class="card">
-                <h3>National Ranking — Australia</h3>
-                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Where our chapter sits among all Australian chapters. Showing top 20 + our chapter if outside top 20.</p>
-                <div style="overflow-x:auto;" id="compareNationalTable"></div>
+            <div id="compare-national" class="compare-sub" style="display:none;">
+                <div class="card">
+                    <h3>National Ranking — Australia</h3>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.75rem;">Where our chapter sits among all Australian chapters. Showing top 20 + our chapter if outside top 20.</p>
+                    <div style="overflow-x:auto;" id="compareNationalTable"></div>
+                </div>
             </div>
         </div>
     </main>
@@ -1295,6 +1327,15 @@
         });
     }
 
+    function switchCompareTab(btn) {
+        document.querySelectorAll('.sub-tab-bar button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.compare-sub').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+        btn.classList.add('active');
+        const panel = document.getElementById(btn.dataset.subtab);
+        panel.classList.add('active');
+        panel.style.display = 'block';
+    }
+
     // --- CHAPTER COMPARISON ---
     const OUR_CHAPTER = 'BNI Business Accelerator';
     const OUR_REGION = 'VIC - Melbourne Central';
@@ -1353,40 +1394,34 @@
             statEl.innerHTML = '<div class="card"><p style="color:var(--text-muted);">No chapter KPI data for this period.</p></div>';
         }
 
-        // --- Line chart: our chapter vs regional avg vs national avg ---
-        destroyChart('compareLineChart');
+        // --- Build chapter toggle chips + line chart ---
         const allPeriods = [...new Set(chapterSummary.map(c => c.report_period))].sort();
-        const ourData = allPeriods.map(p => {
-            const r = chapterSummary.find(c => c.chapter_name === OUR_CHAPTER && c.source === 'api' && c.report_period === p);
-            return r ? r.total_pts : null;
-        });
-        const regAvgData = allPeriods.map(p => {
-            const rows = chapterSummary.filter(c => c.source === 'api' && c.report_period === p);
-            return rows.length ? +(rows.reduce((s, r) => s + (r.total_pts || 0), 0) / rows.length).toFixed(1) : null;
-        });
-        const natAvgData = allPeriods.map(p => {
-            const rows = chapterSummary.filter(c => c.source === 'australia_pdf' && c.report_period === p);
-            return rows.length ? +(rows.reduce((s, r) => s + (r.total_pts || 0), 0) / rows.length).toFixed(1) : null;
-        });
-        charts['compareLineChart'] = new Chart(document.getElementById('compareLineChart'), {
-            type: 'line',
-            data: {
-                labels: allPeriods,
-                datasets: [
-                    { label: OUR_CHAPTER, data: ourData, borderColor: '#CF2030', backgroundColor: 'rgba(207,32,48,0.1)', borderWidth: 3, tension: 0.3, pointRadius: 4, fill: false },
-                    { label: 'Regional Avg (Melb Central)', data: regAvgData, borderColor: tc.text, borderDash: [6, 3], borderWidth: 2, tension: 0.3, pointRadius: 3, fill: false },
-                    { label: 'National Avg (Australia)', data: natAvgData, borderColor: '#eab308', borderDash: [3, 3], borderWidth: 2, tension: 0.3, pointRadius: 3, fill: false },
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: tc.text } } },
-                scales: {
-                    x: { ticks: { color: tc.text }, grid: { color: tc.grid } },
-                    y: { ticks: { color: tc.text }, grid: { color: tc.grid }, min: 0, max: 100 }
-                }
-            }
-        });
+        const latestPeriod = allPeriods[allPeriods.length - 1];
+
+        // All regional chapters sorted by latest pts
+        const allRegChapters = chapterSummary
+            .filter(c => c.source === 'api' && c.report_period === latestPeriod && c.chapter_name !== OUR_CHAPTER)
+            .sort((a, b) => (b.total_pts || 0) - (a.total_pts || 0));
+        const chapterNames = allRegChapters.map(c => c.chapter_name);
+
+        // Init selected set on first run (default top 10)
+        if (!state._compareChapterSelected) {
+            state._compareChapterSelected = new Set(chapterNames.slice(0, 10));
+        }
+        // Store refs for helpers
+        state._compareAllChapters = chapterNames;
+
+        // Build toggle chips (matching member toggle style)
+        const top10Colors = ['#6366f1','#06b6d4','#10b981','#f59e0b','#ec4899','#8b5cf6','#14b8a6','#f97316','#84cc16','#a855f7','#0ea5e9','#d946ef','#22d3ee','#fb923c','#4ade80','#c084fc','#2dd4bf','#f43f5e','#a3e635','#818cf8'];
+        const colorMap = {};
+        chapterNames.forEach((n, i) => { colorMap[n] = top10Colors[i % top10Colors.length]; });
+        state._compareColorMap = colorMap;
+        state._compareChapterData = allRegChapters;
+
+        buildCompareToggles();
+
+        // Render chart with selected chapters
+        renderCompareChart();
 
         // --- Regional table ---
         const regTableEl = document.getElementById('compareRegionalTable');
@@ -1433,6 +1468,133 @@
         } else {
             natTableEl.innerHTML = '<p style="color:var(--text-muted);padding:1rem;">No national data for this period.</p>';
         }
+    }
+
+    function buildCompareToggles() {
+        const sel = state._compareChapterSelected;
+        const colorMap = state._compareColorMap || {};
+        const chapterData = state._compareChapterData || [];
+        const toggleEl = document.getElementById('compareChapterToggles');
+        if (!toggleEl) return;
+        let tHtml = '';
+        (state._compareAllChapters || []).forEach(name => {
+            const vis = sel.has(name);
+            const col = colorMap[name] || '#999';
+            const short = name.replace('BNI ', '');
+            const ch = chapterData.find(c => c.chapter_name === name);
+            const cor = ch ? (ch.total_cor || 'G') : 'G';
+            tHtml += `<label style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.6rem;border-radius:6px;font-size:0.78rem;cursor:pointer;border:1px solid ${vis ? col : 'var(--border)'};background:${vis ? col + '18' : 'transparent'};opacity:${vis ? 1 : 0.4};transition:all 0.15s;white-space:nowrap;">
+                <input type="checkbox" ${vis ? 'checked' : ''} onchange="toggleCompareChapter('${name.replace(/'/g, "\\'")}')" style="display:none;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></span>
+                <span>${short}</span>
+                <span class="dot dot-${cor}" style="width:7px;height:7px;"></span>
+            </label>`;
+        });
+        toggleEl.innerHTML = tHtml;
+    }
+
+    function renderCompareChart() {
+        destroyChart('compareLineChart');
+        const { chapterSummary, _compareChapterSelected: selected, _compareColorMap: colorMap } = state;
+        const tc = getThemeColors();
+        const allPeriods = [...new Set(chapterSummary.map(c => c.report_period))].sort();
+
+        // Our chapter (always shown)
+        const ourData = allPeriods.map(p => {
+            const r = chapterSummary.find(c => c.chapter_name === OUR_CHAPTER && c.source === 'api' && c.report_period === p);
+            return r ? r.total_pts : null;
+        });
+        // Averages
+        const regAvgData = allPeriods.map(p => {
+            const rows = chapterSummary.filter(c => c.source === 'api' && c.report_period === p);
+            return rows.length ? +(rows.reduce((s, r) => s + (r.total_pts || 0), 0) / rows.length).toFixed(1) : null;
+        });
+        const natAvgData = allPeriods.map(p => {
+            const rows = chapterSummary.filter(c => c.source === 'australia_pdf' && c.report_period === p);
+            return rows.length ? +(rows.reduce((s, r) => s + (r.total_pts || 0), 0) / rows.length).toFixed(1) : null;
+        });
+        // Selected chapter datasets
+        const chapterDatasets = [...selected].map(name => {
+            const data = allPeriods.map(p => {
+                const r = chapterSummary.find(c => c.chapter_name === name && c.source === 'api' && c.report_period === p);
+                return r ? r.total_pts : null;
+            });
+            return {
+                label: name.replace('BNI ', ''),
+                data,
+                borderColor: colorMap[name] || '#999',
+                borderWidth: 1.5,
+                tension: 0.3,
+                pointRadius: 2,
+                fill: false,
+            };
+        });
+
+        charts['compareLineChart'] = new Chart(document.getElementById('compareLineChart'), {
+            type: 'line',
+            data: {
+                labels: allPeriods,
+                datasets: [
+                    ...chapterDatasets,
+                    { label: 'Regional Avg', data: regAvgData, borderColor: tc.text, borderDash: [6, 3], borderWidth: 2, tension: 0.3, pointRadius: 0, fill: false },
+                    { label: 'National Avg', data: natAvgData, borderColor: '#eab308', borderDash: [3, 3], borderWidth: 2, tension: 0.3, pointRadius: 0, fill: false },
+                    { label: OUR_CHAPTER, data: ourData, borderColor: '#CF2030', borderWidth: 3.5, tension: 0.3, pointRadius: 5, fill: false },
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: tc.text }, grid: { color: tc.grid } },
+                    y: { ticks: { color: tc.text }, grid: { color: tc.grid }, min: 0, max: 100 }
+                }
+            }
+        });
+    }
+
+    function toggleCompareChapter(name) {
+        const sel = state._compareChapterSelected;
+        if (sel.has(name)) sel.delete(name); else sel.add(name);
+        buildCompareToggles();
+        renderCompareChart();
+    }
+
+    function compareChapterSelectAll() {
+        state._compareChapterSelected = new Set(state._compareAllChapters || []);
+        buildCompareToggles();
+        renderCompareChart();
+    }
+    function compareChapterClear() {
+        state._compareChapterSelected = new Set();
+        buildCompareToggles();
+        renderCompareChart();
+    }
+    function compareChapterTop10() {
+        state._compareChapterSelected = new Set((state._compareAllChapters || []).slice(0, 10));
+        buildCompareToggles();
+        renderCompareChart();
+    }
+    function compareChapterSelectGreen() {
+        const data = state._compareChapterData || [];
+        state._compareChapterSelected = new Set(
+            (state._compareAllChapters || []).filter(name => {
+                const ch = data.find(c => c.chapter_name === name);
+                return ch && ch.total_cor === 'G';
+            })
+        );
+        buildCompareToggles();
+        renderCompareChart();
+    }
+    function compareChapterSelectNotGreen() {
+        const data = state._compareChapterData || [];
+        state._compareChapterSelected = new Set(
+            (state._compareAllChapters || []).filter(name => {
+                const ch = data.find(c => c.chapter_name === name);
+                return ch && ch.total_cor !== 'G';
+            })
+        );
+        buildCompareToggles();
+        renderCompareChart();
     }
 
     // --- Theme ---
