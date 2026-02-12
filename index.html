@@ -336,6 +336,7 @@
         <div style="display:flex;align-items:flex-end;gap:0.35rem;">
             <button id="setDefaultBtn" onclick="setDefaultMember()" title="Set current member as your default" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all 0.2s;">&#9734;</button>
             <button id="clearDefaultBtn" onclick="clearDefaultMember()" title="Clear default member" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);height:36px;border-radius:8px;cursor:pointer;font-size:0.7rem;padding:0 0.5rem;display:none;align-items:center;transition:all 0.2s;">&times; Clear default</button>
+            <span id="defaultHint" style="font-size:0.75rem;color:var(--text-muted);align-self:center;white-space:nowrap;">Select a member, then click &#9734; to set as your default</span>
         </div>
     </div>
 
@@ -708,17 +709,22 @@
         const current = document.getElementById('memberSelect').value;
         const setBtn = document.getElementById('setDefaultBtn');
         const clearBtn = document.getElementById('clearDefaultBtn');
+        const hint = document.getElementById('defaultHint');
         if (def) {
             // Show filled star if current member IS the default
             setBtn.innerHTML = current === def ? '&#9733;' : '&#9734;';
             setBtn.style.color = current === def ? 'var(--accent)' : 'var(--text-muted)';
             setBtn.title = current === def ? `${def} is your default` : `Set ${current || 'current member'} as default (currently: ${def})`;
             clearBtn.style.display = 'flex';
+            hint.textContent = `Default: ${def}`;
+            hint.style.color = 'var(--accent)';
         } else {
             setBtn.innerHTML = '&#9734;';
             setBtn.style.color = 'var(--text-muted)';
             setBtn.title = 'Set current member as your default';
             clearBtn.style.display = 'none';
+            hint.innerHTML = 'Select a member, then click &#9734; to set as your default';
+            hint.style.color = 'var(--text-muted)';
         }
     }
 
